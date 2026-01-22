@@ -45,6 +45,17 @@ PUT    /api/projects/:id/timeline
 PUT    /api/projects/:id/stakeholders
 ```
 
+## Next Do Management
+
+### Next Do Endpoints
+```
+GET /api/next-do 
+POST /api/next-do/feedback 
+POST /api/next-do/skip 
+GET /api/next-do/queue 
+POST /api/next-do/refresh
+```
+
 ## Task Management
 
 ### Task Endpoints
