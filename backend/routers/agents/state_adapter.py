@@ -4,6 +4,9 @@ from typing import Optional, List
 from pydantic import BaseModel, Field
 from core.supabase import get_supabase
 from core.security import get_current_user
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/state-adapter", tags=["Daily State Adapter"])
 
@@ -22,55 +25,63 @@ async def state_check_in(
     current_user: dict = Depends(get_current_user),
 ):
     """Process a daily state check-in and provide adaptive recommendations."""
-    supabase = get_supabase()
-    today = date.today().isoformat()
+    try:
+        supabase = get_supabase()
+        today = date.today().isoformat()
 
-    # Save or update check-in
-    existing = (
-        supabase.table("daily_check_ins")
-        .select("id")
-        .eq("user_id", current_user["id"])
-        .eq("date", today)
-        .single()
-        .execute()
-    )
+        # Save or update check-in
+        existing = (
+            supabase.table("daily_check_ins")
+            .select("id")
+            .eq("user_id", current_user["id"])
+            .eq("date", today)
+            .execute()
+        )
 
-    checkin_data = {
-        "user_id": current_user["id"],
-        "date": today,
-        "energy_level": request.energy_level,
-        "mood": request.mood,
-        "sleep_quality": request.sleep_quality,
-    }
+        checkin_data = {
+            "user_id": current_user["id"],
+            "date": today,
+            "energy_level": request.energy_level,
+            "mood": request.mood,
+            "sleep_quality": request.sleep_quality,
+        }
 
-    if existing.data:
-        supabase.table("daily_check_ins").update(checkin_data).eq("id", existing.data["id"]).execute()
-    else:
-        supabase.table("daily_check_ins").insert(checkin_data).execute()
+        if existing.data:
+            supabase.table("daily_check_ins").update(checkin_data).eq("id", existing.data[0]["id"]).execute()
+        else:
+            supabase.table("daily_check_ins").insert(checkin_data).execute()
 
-    # Generate adaptive recommendations
-    recommendations = generate_state_recommendations(
-        request.energy_level,
-        request.mood,
-        request.sleep_quality,
-        request.stress_level,
-    )
+        # Generate adaptive recommendations
+        recommendations = generate_state_recommendations(
+            request.energy_level,
+            request.mood,
+            request.sleep_quality,
+            request.stress_level,
+        )
 
-    # Update streak
-    update_checkin_streak(supabase, current_user["id"])
+        # Update streak
+        update_checkin_streak(supabase, current_user["id"])
 
-    return {
-        "success": True,
-        "data": {
-            "check_in_recorded": True,
-            "state_summary": {
-                "energy_level": request.energy_level,
-                "mood": request.mood,
-                "overall_readiness": calculate_readiness(request.energy_level, request.mood),
+        return {
+            "success": True,
+            "data": {
+                "check_in_recorded": True,
+                "state_summary": {
+                    "energy_level": request.energy_level,
+                    "mood": request.mood,
+                    "overall_readiness": calculate_readiness(request.energy_level, request.mood),
+                },
+                "recommendations": recommendations,
             },
-            "recommendations": recommendations,
-        },
-    }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in state_check_in: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to process state check-in",
+        )
 
 
 def calculate_readiness(energy: int, mood: str) -> str:
@@ -137,33 +148,33 @@ def update_checkin_streak(supabase, user_id: str):
         .select("*")
         .eq("user_id", user_id)
         .eq("streak_type", "daily_check_in")
-        .single()
         .execute()
     )
 
     today = date.today()
 
     if streak.data:
-        last_date = datetime.fromisoformat(streak.data["last_activity_date"]).date() if streak.data.get("last_activity_date") else None
+        streak_data = streak.data[0]
+        last_date = datetime.fromisoformat(streak_data["last_activity_date"]).date() if streak_data.get("last_activity_date") else None
 
         if last_date == today:
             return  # Already counted today
 
-        if last_date == today - timezone.timedelta(days=1):
+        if last_date == today - timedelta(days=1):
             # Continue streak
-            new_count = streak.data["current_count"] + 1
-            longest = max(streak.data.get("longest_count", 0), new_count)
+            new_count = streak_data["current_count"] + 1
+            longest = max(streak_data.get("longest_count", 0), new_count)
             supabase.table("streaks").update({
                 "current_count": new_count,
                 "longest_count": longest,
                 "last_activity_date": today.isoformat(),
-            }).eq("id", streak.data["id"]).execute()
+            }).eq("id", streak_data["id"]).execute()
         else:
             # Reset streak
             supabase.table("streaks").update({
                 "current_count": 1,
                 "last_activity_date": today.isoformat(),
-            }).eq("id", streak.data["id"]).execute()
+            }).eq("id", streak_data["id"]).execute()
     else:
         # Create new streak
         supabase.table("streaks").insert({
@@ -180,67 +191,76 @@ async def get_energy_assessment(
     current_user: dict = Depends(get_current_user),
 ):
     """Get energy assessment and patterns."""
-    supabase = get_supabase()
+    try:
+        supabase = get_supabase()
 
-    # Get recent check-ins
-    checkins = (
-        supabase.table("daily_check_ins")
-        .select("date, energy_level, mood, sleep_quality")
-        .eq("user_id", current_user["id"])
-        .order("date", desc=True)
-        .limit(14)
-        .execute()
-    )
+        # Get recent check-ins
+        checkins = (
+            supabase.table("daily_check_ins")
+            .select("date, energy_level, mood, sleep_quality")
+            .eq("user_id", current_user["id"])
+            .order("date", desc=True)
+            .limit(14)
+            .execute()
+        )
 
-    data = checkins.data or []
+        data = checkins.data or []
 
-    if not data:
-        return {
-            "success": True,
-            "data": {
-                "message": "No check-in data available yet",
-                "recommendation": "Start with a daily check-in to track your energy patterns",
+        if not data:
+            return {
+                "success": True,
+                "data": {
+                    "message": "No check-in data available yet",
+                    "recommendation": "Start with a daily check-in to track your energy patterns",
+                },
+            }
+
+        # Calculate averages
+        energy_levels = [c["energy_level"] for c in data if c.get("energy_level")]
+        avg_energy = sum(energy_levels) / len(energy_levels) if energy_levels else 5
+
+        # Find patterns
+        high_energy_days = [c for c in data if c.get("energy_level", 0) >= 7]
+        low_energy_days = [c for c in data if c.get("energy_level", 0) <= 4]
+
+        assessment = {
+            "current_energy": data[0].get("energy_level") if data else None,
+            "average_energy": round(avg_energy, 1),
+            "trend": "stable",
+            "patterns": {
+                "high_energy_frequency": f"{len(high_energy_days)}/{len(data)} days",
+                "low_energy_frequency": f"{len(low_energy_days)}/{len(data)} days",
             },
+            "recommendations": [],
         }
 
-    # Calculate averages
-    energy_levels = [c["energy_level"] for c in data if c.get("energy_level")]
-    avg_energy = sum(energy_levels) / len(energy_levels) if energy_levels else 5
+        # Determine trend
+        if len(energy_levels) >= 3:
+            recent = sum(energy_levels[:3]) / 3
+            older = sum(energy_levels[-3:]) / 3
+            if recent > older + 1:
+                assessment["trend"] = "improving"
+            elif recent < older - 1:
+                assessment["trend"] = "declining"
 
-    # Find patterns
-    high_energy_days = [c for c in data if c.get("energy_level", 0) >= 7]
-    low_energy_days = [c for c in data if c.get("energy_level", 0) <= 4]
+        # Add recommendations
+        if avg_energy < 5:
+            assessment["recommendations"].append("Consider reviewing your sleep and stress management")
+        if len(low_energy_days) > len(data) / 2:
+            assessment["recommendations"].append("Many low-energy days - consider lighter workloads")
 
-    assessment = {
-        "current_energy": data[0].get("energy_level") if data else None,
-        "average_energy": round(avg_energy, 1),
-        "trend": "stable",
-        "patterns": {
-            "high_energy_frequency": f"{len(high_energy_days)}/{len(data)} days",
-            "low_energy_frequency": f"{len(low_energy_days)}/{len(data)} days",
-        },
-        "recommendations": [],
-    }
-
-    # Determine trend
-    if len(energy_levels) >= 3:
-        recent = sum(energy_levels[:3]) / 3
-        older = sum(energy_levels[-3:]) / 3
-        if recent > older + 1:
-            assessment["trend"] = "improving"
-        elif recent < older - 1:
-            assessment["trend"] = "declining"
-
-    # Add recommendations
-    if avg_energy < 5:
-        assessment["recommendations"].append("Consider reviewing your sleep and stress management")
-    if len(low_energy_days) > len(data) / 2:
-        assessment["recommendations"].append("Many low-energy days - consider lighter workloads")
-
-    return {
-        "success": True,
-        "data": assessment,
-    }
+        return {
+            "success": True,
+            "data": assessment,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in get_energy_assessment: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get energy assessment",
+        )
 
 
 @router.get("/task-recommendations")
@@ -248,90 +268,99 @@ async def get_state_based_recommendations(
     current_user: dict = Depends(get_current_user),
 ):
     """Get task recommendations based on current state."""
-    supabase = get_supabase()
-    today = date.today().isoformat()
+    try:
+        supabase = get_supabase()
+        today = date.today().isoformat()
 
-    # Get today's check-in
-    checkin = (
-        supabase.table("daily_check_ins")
-        .select("*")
-        .eq("user_id", current_user["id"])
-        .eq("date", today)
-        .single()
-        .execute()
-    )
+        # Get today's check-in
+        checkin = (
+            supabase.table("daily_check_ins")
+            .select("*")
+            .eq("user_id", current_user["id"])
+            .eq("date", today)
+            .execute()
+        )
 
-    if not checkin.data:
+        if not checkin.data:
+            return {
+                "success": True,
+                "data": {
+                    "message": "Please complete your daily check-in first",
+                    "check_in_required": True,
+                },
+            }
+
+        checkin_record = checkin.data[0]
+        energy = checkin_record.get("energy_level", 5)
+        mood = checkin_record.get("mood", "neutral")
+
+        # Get tasks
+        tasks = (
+            supabase.table("tasks")
+            .select("*, projects(name)")
+            .eq("user_id", current_user["id"])
+            .in_("status", ["todo", "in_progress", "paused"])
+            .execute()
+        )
+
+        # Categorize tasks by complexity
+        recommended = []
+        for task in tasks.data or []:
+            duration = task.get("estimated_duration") or 30
+            priority = task.get("priority", "medium")
+
+            # Calculate fit score based on energy
+            fit_score = 0
+            if energy >= 7:
+                # High energy - prefer complex tasks
+                if duration >= 60 or priority in ["urgent", "high"]:
+                    fit_score = 10
+                else:
+                    fit_score = 5
+            elif energy >= 4:
+                # Medium energy - prefer moderate tasks
+                if 30 <= duration <= 60:
+                    fit_score = 10
+                else:
+                    fit_score = 6
+            else:
+                # Low energy - prefer simple tasks
+                if duration <= 30:
+                    fit_score = 10
+                else:
+                    fit_score = 3
+
+            recommended.append({
+                "task_id": task["id"],
+                "title": task["title"],
+                "project_name": task.get("projects", {}).get("name") if task.get("projects") else None,
+                "priority": priority,
+                "estimated_duration": duration,
+                "fit_score": fit_score,
+                "fit_reason": get_fit_reason(energy, duration, priority),
+            })
+
+        recommended.sort(key=lambda x: x["fit_score"], reverse=True)
+
         return {
             "success": True,
             "data": {
-                "message": "Please complete your daily check-in first",
-                "check_in_required": True,
+                "current_state": {
+                    "energy_level": energy,
+                    "mood": mood,
+                },
+                "recommended_tasks": recommended[:5],
+                "work_style": "deep_focus" if energy >= 7 else "light" if energy <= 4 else "balanced",
             },
         }
-
-    energy = checkin.data.get("energy_level", 5)
-    mood = checkin.data.get("mood", "neutral")
-
-    # Get tasks
-    tasks = (
-        supabase.table("tasks")
-        .select("*, projects(name)")
-        .eq("user_id", current_user["id"])
-        .in_("status", ["todo", "in_progress", "paused"])
-        .execute()
-    )
-
-    # Categorize tasks by complexity
-    recommended = []
-    for task in tasks.data or []:
-        duration = task.get("estimated_duration") or 30
-        priority = task.get("priority", "medium")
-
-        # Calculate fit score based on energy
-        fit_score = 0
-        if energy >= 7:
-            # High energy - prefer complex tasks
-            if duration >= 60 or priority in ["urgent", "high"]:
-                fit_score = 10
-            else:
-                fit_score = 5
-        elif energy >= 4:
-            # Medium energy - prefer moderate tasks
-            if 30 <= duration <= 60:
-                fit_score = 10
-            else:
-                fit_score = 6
-        else:
-            # Low energy - prefer simple tasks
-            if duration <= 30:
-                fit_score = 10
-            else:
-                fit_score = 3
-
-        recommended.append({
-            "task_id": task["id"],
-            "title": task["title"],
-            "project_name": task.get("projects", {}).get("name") if task.get("projects") else None,
-            "priority": priority,
-            "estimated_duration": duration,
-            "fit_score": fit_score,
-            "fit_reason": get_fit_reason(energy, duration, priority),
-        })
-
-    recommended.sort(key=lambda x: x["fit_score"], reverse=True)
-
-    return {
-        "success": True,
-        "data": {
-            "current_state": {
-                "energy_level": energy,
-                "mood": mood,
-            },
-            "recommended_tasks": recommended[:5],
-            "work_style": "deep_focus" if energy >= 7 else "light" if energy <= 4 else "balanced",
-        },
-    }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in get_state_based_recommendations: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get state-based recommendations",
+        )
 
 
 def get_fit_reason(energy: int, duration: int, priority: str) -> str:

@@ -4,6 +4,9 @@ from typing import Optional, List
 from models.next_do import NextDoFeedback, NextDoSkip
 from core.supabase import get_supabase
 from core.security import get_current_user
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/next-do", tags=["Next Do"])
 
@@ -135,12 +138,11 @@ async def get_user_current_state(user_id: str) -> dict:
         .select("*")
         .eq("user_id", user_id)
         .eq("date", today)
-        .single()
         .execute()
     )
 
     if checkin.data:
-        return checkin.data
+        return checkin.data[0]
 
     # Fallback to user_states
     state = (
@@ -164,66 +166,75 @@ async def get_next_do(
     current_user: dict = Depends(get_current_user),
 ):
     """Get the single most important task to do right now."""
-    supabase = get_supabase()
+    try:
+        supabase = get_supabase()
 
-    # Get user's current state
-    user_state = await get_user_current_state(current_user["id"])
-    current_hour = datetime.now(timezone.utc).hour
+        # Get user's current state
+        user_state = await get_user_current_state(current_user["id"])
+        current_hour = datetime.now(timezone.utc).hour
 
-    # Get all incomplete tasks
-    tasks_response = (
-        supabase.table("tasks")
-        .select("*, projects(name)")
-        .eq("user_id", current_user["id"])
-        .in_("status", ["todo", "in_progress", "paused"])
-        .execute()
-    )
+        # Get all incomplete tasks
+        tasks_response = (
+            supabase.table("tasks")
+            .select("*, projects(name)")
+            .eq("user_id", current_user["id"])
+            .in_("status", ["todo", "in_progress", "paused"])
+            .execute()
+        )
 
-    tasks = tasks_response.data or []
+        tasks = tasks_response.data or []
 
-    if not tasks:
+        if not tasks:
+            return {
+                "success": True,
+                "data": {
+                    "task": None,
+                    "message": "No tasks to do! Time to relax or plan ahead.",
+                },
+            }
+
+        # Score each task
+        scored_tasks = []
+        for task in tasks:
+            score, reasons = calculate_task_score(task, user_state, current_hour)
+            scored_tasks.append({
+                "task": task,
+                "score": score,
+                "reasons": reasons,
+            })
+
+        # Sort by score descending
+        scored_tasks.sort(key=lambda x: x["score"], reverse=True)
+
+        top_task = scored_tasks[0]
+
         return {
             "success": True,
             "data": {
-                "task": None,
-                "message": "No tasks to do! Time to relax or plan ahead.",
+                "task": {
+                    "id": top_task["task"]["id"],
+                    "title": top_task["task"]["title"],
+                    "description": top_task["task"].get("description"),
+                    "project_id": top_task["task"]["project_id"],
+                    "project_name": top_task["task"].get("projects", {}).get("name") if top_task["task"].get("projects") else None,
+                    "priority": top_task["task"]["priority"],
+                    "status": top_task["task"]["status"],
+                    "estimated_duration": top_task["task"].get("estimated_duration"),
+                    "deadline": top_task["task"].get("deadline"),
+                },
+                "score": round(top_task["score"], 1),
+                "reasons": top_task["reasons"],
+                "energy_level": user_state.get("energy_level", 5),
             },
         }
-
-    # Score each task
-    scored_tasks = []
-    for task in tasks:
-        score, reasons = calculate_task_score(task, user_state, current_hour)
-        scored_tasks.append({
-            "task": task,
-            "score": score,
-            "reasons": reasons,
-        })
-
-    # Sort by score descending
-    scored_tasks.sort(key=lambda x: x["score"], reverse=True)
-
-    top_task = scored_tasks[0]
-
-    return {
-        "success": True,
-        "data": {
-            "task": {
-                "id": top_task["task"]["id"],
-                "title": top_task["task"]["title"],
-                "description": top_task["task"].get("description"),
-                "project_id": top_task["task"]["project_id"],
-                "project_name": top_task["task"].get("projects", {}).get("name") if top_task["task"].get("projects") else None,
-                "priority": top_task["task"]["priority"],
-                "status": top_task["task"]["status"],
-                "estimated_duration": top_task["task"].get("estimated_duration"),
-                "deadline": top_task["task"].get("deadline"),
-            },
-            "score": round(top_task["score"], 1),
-            "reasons": top_task["reasons"],
-            "energy_level": user_state.get("energy_level", 5),
-        },
-    }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in get_next_do: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get next task recommendation",
+        )
 
 
 @router.post("/feedback")

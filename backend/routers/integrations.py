@@ -5,6 +5,9 @@ from pydantic import BaseModel
 from enum import Enum
 from core.supabase import get_supabase
 from core.security import get_current_user
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/integrations", tags=["Integrations"])
 
@@ -88,41 +91,50 @@ async def list_integrations(
     current_user: dict = Depends(get_current_user),
 ):
     """List all available integrations and their status."""
-    supabase = get_supabase()
+    try:
+        supabase = get_supabase()
 
-    # Get user's connected integrations
-    connected = (
-        supabase.table("integrations")
-        .select("*")
-        .eq("user_id", current_user["id"])
-        .execute()
-    )
+        # Get user's connected integrations
+        connected = (
+            supabase.table("integrations")
+            .select("*")
+            .eq("user_id", current_user["id"])
+            .execute()
+        )
 
-    connected_types = {i["integration_type"]: i for i in (connected.data or [])}
+        connected_types = {i["integration_type"]: i for i in (connected.data or [])}
 
-    # Build integration list with status
-    integrations = []
-    for int_type, metadata in INTEGRATION_METADATA.items():
-        connection = connected_types.get(int_type.value)
-        integrations.append({
-            "type": int_type.value,
-            "name": metadata["name"],
-            "description": metadata["description"],
-            "icon": metadata["icon"],
-            "features": metadata["features"],
-            "connected": connection is not None,
-            "connected_at": connection.get("connected_at") if connection else None,
-            "last_synced": connection.get("last_synced_at") if connection else None,
-            "status": connection.get("status") if connection else "not_connected",
-        })
+        # Build integration list with status
+        integrations = []
+        for int_type, metadata in INTEGRATION_METADATA.items():
+            connection = connected_types.get(int_type.value)
+            integrations.append({
+                "type": int_type.value,
+                "name": metadata["name"],
+                "description": metadata["description"],
+                "icon": metadata["icon"],
+                "features": metadata["features"],
+                "connected": connection is not None,
+                "connected_at": connection.get("connected_at") if connection else None,
+                "last_synced": connection.get("last_synced_at") if connection else None,
+                "status": connection.get("status") if connection else "not_connected",
+            })
 
-    return {
-        "success": True,
-        "data": {
-            "integrations": integrations,
-            "connected_count": len(connected_types),
-        },
-    }
+        return {
+            "success": True,
+            "data": {
+                "integrations": integrations,
+                "connected_count": len(connected_types),
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing integrations: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to list integrations",
+        )
 
 
 @router.post("/{integration_type}/connect")
@@ -132,55 +144,57 @@ async def connect_integration(
     current_user: dict = Depends(get_current_user),
 ):
     """Connect to an integration."""
-    supabase = get_supabase()
+    try:
+        supabase = get_supabase()
 
-    # Check if already connected
-    existing = (
-        supabase.table("integrations")
-        .select("id")
-        .eq("user_id", current_user["id"])
-        .eq("integration_type", integration_type.value)
-        .single()
-        .execute()
-    )
-
-    if existing.data:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Already connected to {integration_type.value}",
+        # Check if already connected
+        existing = (
+            supabase.table("integrations")
+            .select("id")
+            .eq("user_id", current_user["id"])
+            .eq("integration_type", integration_type.value)
+            .execute()
         )
 
-    # In a real implementation, this would:
-    # 1. Initiate OAuth flow for the service
-    # 2. Store encrypted credentials
-    # 3. Verify the connection
+        if existing.data:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Already connected to {integration_type.value}",
+            )
 
-    # For now, we'll create a pending connection
-    integration_data = {
-        "user_id": current_user["id"],
-        "integration_type": integration_type.value,
-        "status": "pending",
-        "settings": request.settings or {},
-        "connected_at": datetime.now(timezone.utc).isoformat(),
-    }
+        integration_data = {
+            "user_id": current_user["id"],
+            "integration_type": integration_type.value,
+            "status": "pending",
+            "settings": request.settings or {},
+            "connected_at": datetime.now(timezone.utc).isoformat(),
+        }
 
-    response = supabase.table("integrations").insert(integration_data).execute()
+        supabase.table("integrations").insert(integration_data).execute()
 
-    metadata = INTEGRATION_METADATA.get(integration_type, {})
+        metadata = INTEGRATION_METADATA.get(integration_type, {})
 
-    return {
-        "success": True,
-        "data": {
-            "integration": {
-                "type": integration_type.value,
-                "name": metadata.get("name"),
-                "status": "pending",
-                "connected_at": integration_data["connected_at"],
+        return {
+            "success": True,
+            "data": {
+                "integration": {
+                    "type": integration_type.value,
+                    "name": metadata.get("name"),
+                    "status": "pending",
+                    "connected_at": integration_data["connected_at"],
+                },
+                "message": f"Connection to {metadata.get('name', integration_type.value)} initiated",
+                "next_steps": "Complete OAuth authorization to finish setup",
             },
-            "message": f"Connection to {metadata.get('name', integration_type.value)} initiated",
-            "next_steps": "Complete OAuth authorization to finish setup",
-        },
-    }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error connecting integration {integration_type.value}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to connect integration",
+        )
 
 
 @router.delete("/{integration_type}/disconnect")
@@ -189,33 +203,40 @@ async def disconnect_integration(
     current_user: dict = Depends(get_current_user),
 ):
     """Disconnect from an integration."""
-    supabase = get_supabase()
+    try:
+        supabase = get_supabase()
 
-    # Verify connection exists
-    existing = (
-        supabase.table("integrations")
-        .select("id")
-        .eq("user_id", current_user["id"])
-        .eq("integration_type", integration_type.value)
-        .single()
-        .execute()
-    )
-
-    if not existing.data:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Not connected to {integration_type.value}",
+        # Verify connection exists
+        existing = (
+            supabase.table("integrations")
+            .select("id")
+            .eq("user_id", current_user["id"])
+            .eq("integration_type", integration_type.value)
+            .execute()
         )
 
-    # Delete the integration
-    supabase.table("integrations").delete().eq("id", existing.data["id"]).execute()
+        if not existing.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Not connected to {integration_type.value}",
+            )
 
-    metadata = INTEGRATION_METADATA.get(integration_type, {})
+        supabase.table("integrations").delete().eq("id", existing.data[0]["id"]).execute()
 
-    return {
-        "success": True,
-        "message": f"Disconnected from {metadata.get('name', integration_type.value)}",
-    }
+        metadata = INTEGRATION_METADATA.get(integration_type, {})
+
+        return {
+            "success": True,
+            "message": f"Disconnected from {metadata.get('name', integration_type.value)}",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error disconnecting integration {integration_type.value}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to disconnect integration",
+        )
 
 
 @router.post("/{integration_type}/sync")
@@ -225,60 +246,60 @@ async def sync_integration(
     current_user: dict = Depends(get_current_user),
 ):
     """Sync data with an integration."""
-    supabase = get_supabase()
+    try:
+        supabase = get_supabase()
 
-    # Verify connection exists
-    integration = (
-        supabase.table("integrations")
-        .select("*")
-        .eq("user_id", current_user["id"])
-        .eq("integration_type", integration_type.value)
-        .single()
-        .execute()
-    )
-
-    if not integration.data:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Not connected to {integration_type.value}",
+        integration = (
+            supabase.table("integrations")
+            .select("*")
+            .eq("user_id", current_user["id"])
+            .eq("integration_type", integration_type.value)
+            .execute()
         )
 
-    if integration.data.get("status") != "active":
+        if not integration.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Not connected to {integration_type.value}",
+            )
+
+        if integration.data[0].get("status") != "active":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Integration is not active. Please reconnect.",
+            )
+
+        supabase.table("integrations").update({
+            "last_synced_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("id", integration.data[0]["id"]).execute()
+
+        metadata = INTEGRATION_METADATA.get(integration_type, {})
+
+        sync_results = {
+            "items_synced": 0,
+            "items_created": 0,
+            "items_updated": 0,
+            "errors": [],
+        }
+
+        return {
+            "success": True,
+            "data": {
+                "integration": integration_type.value,
+                "sync_type": "full" if request.full_sync else "incremental",
+                "synced_at": datetime.now(timezone.utc).isoformat(),
+                "results": sync_results,
+                "message": f"Sync with {metadata.get('name', integration_type.value)} completed",
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error syncing integration {integration_type.value}: {e}")
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Integration is not active. Please reconnect.",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to sync integration",
         )
-
-    # In a real implementation, this would:
-    # 1. Fetch data from the external service
-    # 2. Sync tasks, projects, etc.
-    # 3. Handle conflicts
-
-    # Update last synced timestamp
-    supabase.table("integrations").update({
-        "last_synced_at": datetime.now(timezone.utc).isoformat(),
-    }).eq("id", integration.data["id"]).execute()
-
-    metadata = INTEGRATION_METADATA.get(integration_type, {})
-
-    # Simulated sync results
-    sync_results = {
-        "items_synced": 0,
-        "items_created": 0,
-        "items_updated": 0,
-        "errors": [],
-    }
-
-    return {
-        "success": True,
-        "data": {
-            "integration": integration_type.value,
-            "sync_type": "full" if request.full_sync else "incremental",
-            "synced_at": datetime.now(timezone.utc).isoformat(),
-            "results": sync_results,
-            "message": f"Sync with {metadata.get('name', integration_type.value)} completed",
-        },
-    }
 
 
 @router.get("/{integration_type}/status")
@@ -287,41 +308,50 @@ async def get_integration_status(
     current_user: dict = Depends(get_current_user),
 ):
     """Get detailed status of an integration."""
-    supabase = get_supabase()
+    try:
+        supabase = get_supabase()
 
-    integration = (
-        supabase.table("integrations")
-        .select("*")
-        .eq("user_id", current_user["id"])
-        .eq("integration_type", integration_type.value)
-        .single()
-        .execute()
-    )
+        integration = (
+            supabase.table("integrations")
+            .select("*")
+            .eq("user_id", current_user["id"])
+            .eq("integration_type", integration_type.value)
+            .execute()
+        )
 
-    if not integration.data:
+        if not integration.data:
+            metadata = INTEGRATION_METADATA.get(integration_type, {})
+            return {
+                "success": True,
+                "data": {
+                    "type": integration_type.value,
+                    "name": metadata.get("name"),
+                    "connected": False,
+                    "status": "not_connected",
+                },
+            }
+
         metadata = INTEGRATION_METADATA.get(integration_type, {})
+        connection = integration.data[0]
+
         return {
             "success": True,
             "data": {
                 "type": integration_type.value,
                 "name": metadata.get("name"),
-                "connected": False,
-                "status": "not_connected",
+                "connected": True,
+                "status": connection.get("status"),
+                "connected_at": connection.get("connected_at"),
+                "last_synced_at": connection.get("last_synced_at"),
+                "settings": connection.get("settings", {}),
+                "features": metadata.get("features", []),
             },
         }
-
-    metadata = INTEGRATION_METADATA.get(integration_type, {})
-
-    return {
-        "success": True,
-        "data": {
-            "type": integration_type.value,
-            "name": metadata.get("name"),
-            "connected": True,
-            "status": integration.data.get("status"),
-            "connected_at": integration.data.get("connected_at"),
-            "last_synced_at": integration.data.get("last_synced_at"),
-            "settings": integration.data.get("settings", {}),
-            "features": metadata.get("features", []),
-        },
-    }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting integration status: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get integration status",
+        )
