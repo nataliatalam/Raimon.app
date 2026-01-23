@@ -10,11 +10,9 @@ This guide covers setting up and running the FastAPI backend with Supabase authe
 
 ## Installation
 
-### 1. Create the backend directory and virtual environment
+### 1. Create the virtual environment
 
 ```bash
-cd /path/to/Raimon.app
-mkdir -p backend
 cd backend
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
