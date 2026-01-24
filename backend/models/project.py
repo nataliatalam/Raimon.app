@@ -1,7 +1,15 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 from enum import Enum
+import re
+
+
+def sanitize_string(v: Optional[str]) -> Optional[str]:
+    """Strip HTML tags from string input."""
+    if v:
+        return re.sub(r"<[^>]+>", "", v).strip()
+    return v
 
 
 class ProjectStatus(str, Enum):
@@ -11,66 +19,131 @@ class ProjectStatus(str, Enum):
 
 
 class StakeholderSchema(BaseModel):
-    name: str
-    role: Optional[str] = None
-    email: Optional[str] = None
-    avatar_url: Optional[str] = None
+    name: str = Field(..., min_length=1, max_length=100)
+    role: Optional[str] = Field(default=None, max_length=100)
+    email: Optional[str] = Field(default=None, max_length=255)
+    avatar_url: Optional[str] = Field(default=None, max_length=2048)
+
+    @field_validator("name", "role")
+    @classmethod
+    def sanitize_text(cls, v):
+        return sanitize_string(v)
 
 
 class ResourceSchema(BaseModel):
-    type: str  # document, link, file
-    title: str
-    url: str
+    type: str = Field(..., max_length=50)  # document, link, file
+    title: str = Field(..., min_length=1, max_length=255)
+    url: str = Field(..., max_length=2048)
     added_at: Optional[datetime] = None
+
+    @field_validator("type")
+    @classmethod
+    def validate_type(cls, v):
+        allowed = {"document", "link", "file", "image", "video"}
+        if v not in allowed:
+            raise ValueError(f"type must be one of: {allowed}")
+        return v
+
+    @field_validator("title")
+    @classmethod
+    def sanitize_title(cls, v):
+        return sanitize_string(v)
+
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, v):
+        if not v.startswith(("https://", "http://")):
+            raise ValueError("URL must start with http:// or https://")
+        return v
 
 
 # Request Schemas
 class ProjectCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
-    description: Optional[str] = None
+    description: Optional[str] = Field(default=None, max_length=5000)
     priority: int = Field(default=0, ge=0, le=10)
     color: Optional[str] = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
-    icon: Optional[str] = None
+    icon: Optional[str] = Field(default=None, max_length=50)
     start_date: Optional[date] = None
     target_end_date: Optional[date] = None
     details: Optional[Dict[str, Any]] = None
 
+    @field_validator("name")
+    @classmethod
+    def sanitize_name(cls, v):
+        return sanitize_string(v)
+
+    @field_validator("description")
+    @classmethod
+    def sanitize_description(cls, v):
+        return sanitize_string(v)
+
+    @field_validator("icon")
+    @classmethod
+    def sanitize_icon(cls, v):
+        return sanitize_string(v)
+
 
 class ProjectUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=255)
-    description: Optional[str] = None
+    description: Optional[str] = Field(default=None, max_length=5000)
     status: Optional[ProjectStatus] = None
     priority: Optional[int] = Field(default=None, ge=0, le=10)
     color: Optional[str] = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
-    icon: Optional[str] = None
+    icon: Optional[str] = Field(default=None, max_length=50)
     start_date: Optional[date] = None
     target_end_date: Optional[date] = None
+
+    @field_validator("name")
+    @classmethod
+    def sanitize_name(cls, v):
+        return sanitize_string(v)
+
+    @field_validator("description")
+    @classmethod
+    def sanitize_description(cls, v):
+        return sanitize_string(v)
 
 
 # Project Details Update Schemas
 class ProjectProfileUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    color: Optional[str] = None
-    icon: Optional[str] = None
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    description: Optional[str] = Field(default=None, max_length=5000)
+    color: Optional[str] = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
+    icon: Optional[str] = Field(default=None, max_length=50)
+
+    @field_validator("name")
+    @classmethod
+    def sanitize_name(cls, v):
+        return sanitize_string(v)
+
+    @field_validator("description")
+    @classmethod
+    def sanitize_description(cls, v):
+        return sanitize_string(v)
 
 
 class ProjectGoalsUpdate(BaseModel):
-    goals: List[str]
+    goals: List[str] = Field(..., max_length=20)
+
+    @field_validator("goals")
+    @classmethod
+    def validate_goals(cls, v):
+        return [sanitize_string(g)[:500] for g in v if g]
 
 
 class ProjectResourcesUpdate(BaseModel):
-    resources: List[ResourceSchema]
+    resources: List[ResourceSchema] = Field(..., max_length=50)
 
 
 class ProjectTimelineUpdate(BaseModel):
     start_date: Optional[date] = None
     target_end_date: Optional[date] = None
-    milestones: Optional[List[Dict[str, Any]]] = None
+    milestones: Optional[List[Dict[str, Any]]] = Field(default=None, max_length=50)
 
 
 class ProjectStakeholdersUpdate(BaseModel):
-    stakeholders: List[StakeholderSchema]
+    stakeholders: List[StakeholderSchema] = Field(..., max_length=30)
 
 
 # Response Schemas
