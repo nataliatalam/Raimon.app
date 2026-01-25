@@ -1,0 +1,44 @@
+/* app/globals.css */
+
+/* ===== DESIGN SYSTEM RAIMON - Naranja/Rosa ===== */
+:root {
+  --orange: #ff8c42;
+  --orange-bright: #ff6b1a;
+  --pink: #e84a8a;
+  --gradient: linear-gradient(135deg, #ff8c42 0%, #ff6b1a 50%, #e84a8a 100%);
+  --orange-light: rgba(255, 140, 66, 0.15);
+  --orange-glow: rgba(255, 140, 66, 0.3);
+
+  --bg: #000000;
+  --content-box: #d5cfc7;
+
+  --black: #000000;
+  --warm-black: #3a3632;
+
+  --text-muted: #8c8883;
+  --text-light: rgba(255, 255, 255, 0.5);
+  --text-on-dark: #ffffff;
+  --text-muted-dark: rgba(255, 255, 255, 0.5);
+
+  --sidebar-w: 250px;
+  --sidebar-collapsed-w: 76px;
+
+  --font: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  background: var(--bg);
+  overflow: hidden; /* matches your mock */
+}

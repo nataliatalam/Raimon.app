@@ -1,0 +1,477 @@
+.wrap {
+  margin-top: 56px;
+  padding-top: 40px;
+  border-top: 1px solid rgba(0,0,0,0.06);
+}
+
+.head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 22px;
+}
+
+.kicker {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .28em;
+  text-transform: uppercase;
+  color: rgba(0,0,0,0.38);
+  margin-bottom: 10px;
+}
+
+.title {
+  margin: 0;
+  font-size: 34px;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-weight: 900;
+  color: rgba(0,0,0,0.88);
+}
+
+.sub {
+  margin: 10px 0 0;
+  max-width: 520px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgba(0,0,0,0.52);
+}
+
+.pointsPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.92);
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: 0 10px 26px rgba(0,0,0,0.06);
+  white-space: nowrap;
+}
+
+.pointsLabel {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(0,0,0,0.50);
+}
+
+.pointsValue {
+  font-size: 12px;
+  font-weight: 900;
+  color: #ff6a2a;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+@media (max-width: 980px) {
+  .grid { grid-template-columns: 1fr; }
+}
+
+.rock {
+  border-radius: 28px;
+  background: rgba(255,255,255,0.7);
+  border: 1px dashed rgba(0,0,0,0.14);
+  padding: 22px;
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  transition: transform .2s ease, background .2s ease, border-color .2s ease;
+}
+
+.rockActive {
+  transform: scale(1.02);
+  background: rgba(0,0,0,0.03);
+  border-color: rgba(0,0,0,0.26);
+}
+
+.rockEmoji {
+  font-size: 54px;
+  margin-bottom: 12px;
+}
+
+.rockTitle {
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: rgba(0,0,0,0.75);
+  margin-bottom: 6px;
+}
+
+.rockHint {
+  font-size: 12px;
+  color: rgba(0,0,0,0.46);
+}
+
+.stones {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
+  gap: 14px;
+}
+
+@media (max-width: 980px) {
+  .stones { grid-template-columns: repeat(2, minmax(160px, 1fr)); }
+}
+@media (max-width: 560px) {
+  .stones { grid-template-columns: 1fr; }
+}
+
+.empty {
+  grid-column: 1 / -1;
+  padding: 24px;
+  border-radius: 22px;
+  border: 1px dashed rgba(0,0,0,0.10);
+  color: rgba(0,0,0,0.42);
+  text-align: center;
+}
+
+.stone {
+  position: relative;
+  border: none;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: center;
+}
+
+.stoneInner {
+  border-radius: 50% 50% 8px 8px / 35% 35% 5% 5%;
+  background: linear-gradient(180deg, rgba(140,140,140,0.85) 0%, rgba(100,100,100,0.90) 50%, rgba(80,80,80,0.95) 100%);
+  border: 1px solid rgba(0,0,0,0.15);
+  box-shadow:
+    0 14px 30px rgba(0,0,0,0.15),
+    inset 0 2px 4px rgba(255,255,255,0.15),
+    inset 0 -4px 8px rgba(0,0,0,0.1);
+  overflow: hidden;
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.stoneTop {
+  padding: 28px 18px 14px;
+  color: rgba(0,0,0,0.80);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+}
+
+.hereLies {
+  font-size: 10px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.5);
+  margin-bottom: 8px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.epitaph {
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(255,255,255,0.6);
+  margin-top: 14px;
+  font-weight: 400;
+  font-style: italic;
+  text-align: center;
+  max-width: 90%;
+  letter-spacing: 0.02em;
+}
+
+.name {
+  font-size: 20px;
+  line-height: 1.15;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  margin-bottom: 8px;
+  text-align: center;
+  color: rgba(255,255,255,0.95);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+.meta {
+  font-size: 9px;
+  letter-spacing: .24em;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: rgba(255,255,255,0.45);
+  text-align: center;
+}
+
+.fadeRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-top: 1px solid rgba(255,255,255,0.12);
+  font-size: 10px;
+  color: rgba(255,255,255,0.5);
+  width: 100%;
+}
+
+.flowers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+  padding: 14px 8px 6px;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.stoneHover {
+  position: absolute;
+  inset: 0;
+  border-radius: 50% 50% 8px 8px / 35% 35% 5% 5%;
+  background: rgba(0,0,0,0.40);
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transition: opacity .18s ease;
+}
+
+.stone:hover .stoneHover {
+  opacity: 1;
+}
+
+.connect {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.90);
+  border: 1px solid rgba(0,0,0,0.10);
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  color: rgba(0,0,0,0.78);
+}
+
+/* Modal */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.28);
+  backdrop-filter: blur(6px);
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  z-index: 80;
+}
+
+.modal {
+  width: min(720px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  border-radius: 28px;
+  background: rgba(255,255,255,0.95);
+  border: 1px solid rgba(0,0,0,0.08);
+  box-shadow: 0 28px 70px rgba(0,0,0,0.20);
+  padding: 18px;
+}
+
+.modalHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 8px 8px 14px;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+}
+
+.modalKicker {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .28em;
+  text-transform: uppercase;
+  color: rgba(0,0,0,0.40);
+}
+
+.modalTitle {
+  font-size: 22px;
+  font-weight: 950;
+  letter-spacing: -0.02em;
+  color: rgba(0,0,0,0.86);
+  margin-top: 6px;
+}
+
+.modalSub {
+  font-size: 13px;
+  color: rgba(0,0,0,0.52);
+  margin-top: 6px;
+}
+
+.closeBtn {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,0,0,0.08);
+  background: rgba(255,255,255,0.9);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  color: rgba(0,0,0,0.55);
+}
+
+.block {
+  padding: 16px 8px 6px;
+}
+
+.blockTitle {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .26em;
+  text-transform: uppercase;
+  color: rgba(0,0,0,0.44);
+  margin-bottom: 12px;
+}
+
+.offeringGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 620px) {
+  .offeringGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.offerBtn {
+  border-radius: 20px;
+  border: 1px solid rgba(0,0,0,0.08);
+  background: rgba(255,255,255,0.92);
+  padding: 12px;
+  cursor: pointer;
+  transition: transform .18s ease, background .18s ease, border-color .18s ease;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.offerBtn:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255,106,42,0.35);
+  background: rgba(255,106,42,0.06);
+}
+
+.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.offerEmoji {
+  font-size: 22px;
+}
+
+.offerMeta {
+  text-align: right;
+}
+
+.offerCost {
+  font-size: 12px;
+  font-weight: 900;
+  color: rgba(0,0,0,0.70);
+}
+
+.offerDays {
+  font-size: 11px;
+  color: rgba(0,0,0,0.50);
+}
+
+.epitaphRow {
+  display: flex;
+  gap: 10px;
+}
+
+.input {
+  flex: 1;
+  border-radius: 16px;
+  border: 1px solid rgba(0,0,0,0.10);
+  background: rgba(0,0,0,0.03);
+  padding: 12px 14px;
+  outline: none;
+  font-size: 14px;
+  color: rgba(0,0,0,0.80);
+}
+
+.input:focus {
+  border-color: rgba(255,106,42,0.45);
+}
+
+.writeBtn {
+  width: 44px;
+  border-radius: 16px;
+  border: 1px solid rgba(0,0,0,0.10);
+  background: rgba(255,106,42,0.12);
+  color: rgba(0,0,0,0.80);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.writeBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ritual {
+  margin: 10px 8px 0;
+  padding: 14px;
+  border-radius: 22px;
+  border: 1px solid rgba(255,106,42,0.18);
+  background: linear-gradient(90deg, rgba(255,106,42,0.10), rgba(255,106,42,0.06));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.ritualTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 950;
+  color: rgba(0,0,0,0.82);
+}
+
+.ritualSub {
+  font-size: 12px;
+  color: rgba(0,0,0,0.54);
+  margin-top: 4px;
+}
+
+.reviveBtn {
+  border: none;
+  border-radius: 16px;
+  padding: 10px 14px;
+  background: rgba(0,0,0,0.88);
+  color: white;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.reviveBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.balance {
+  margin: 14px 8px 4px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(0,0,0,0.06);
+  font-size: 12px;
+  color: rgba(0,0,0,0.55);
+  text-align: center;
+}

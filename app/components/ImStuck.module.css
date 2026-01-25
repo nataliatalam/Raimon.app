@@ -1,0 +1,468 @@
+/* ImStuck Modal Styles */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--cream, #F5F3ED);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  overflow-y: auto;
+}
+
+.container {
+  width: 100%;
+  max-width: 580px;
+}
+
+/* Close button */
+.closeBtn {
+  position: fixed;
+  top: 32px;
+  right: 32px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: white;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: all 0.2s;
+  z-index: 1001;
+}
+
+.closeBtn:hover {
+  transform: scale(1.05);
+}
+
+.closeBtn svg {
+  width: 20px;
+  height: 20px;
+  color: #6B6B6B;
+}
+
+/* Steps */
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: fadeIn 0.4s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Header Text */
+.headerText {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.title {
+  font-size: 48px;
+  font-weight: 300;
+  color: #1A1A1A;
+  line-height: 1.15;
+  margin-bottom: 12px;
+  letter-spacing: -0.02em;
+}
+
+.gradient {
+  background: linear-gradient(135deg, #A7F3D0 0%, #93C5FD 50%, #C4B5FD 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.subtitle {
+  font-size: 16px;
+  color: #6B6B6B;
+  line-height: 1.5;
+}
+
+/* Card */
+.card {
+  background: white;
+  border-radius: 28px;
+  padding: 36px;
+  width: 100%;
+}
+
+/* Reason Pills */
+.reasonPills {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.reasonPill {
+  padding: 18px 28px;
+  background: #F5F3ED;
+  border: none;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  color: #1A1A1A;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.reasonPill:hover {
+  background: #EBE8E0;
+  transform: translateX(4px);
+}
+
+.reasonPill.selected {
+  background: #1A1A1A;
+  color: white;
+}
+
+/* Breathing - Minimal */
+.breathingContainer {
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.breathingPhase {
+  font-size: 32px;
+  font-weight: 300;
+  color: #1A1A1A;
+  margin-bottom: 16px;
+}
+
+.breathingCounter {
+  font-size: 120px;
+  font-weight: 200;
+  background: linear-gradient(135deg, #A7F3D0 0%, #93C5FD 50%, #C4B5FD 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+}
+
+/* Info Box */
+.infoBox {
+  background: #F5F3ED;
+  border-radius: 20px;
+  padding: 24px;
+  text-align: left;
+  margin: 24px 0;
+}
+
+.infoBox p {
+  font-size: 14px;
+  color: #6B6B6B;
+  line-height: 1.7;
+  margin-bottom: 12px;
+}
+
+.infoBox p:last-child {
+  margin-bottom: 0;
+}
+
+.infoBox strong {
+  color: #1A1A1A;
+}
+
+/* Journal */
+.journalPrompt {
+  font-size: 24px;
+  font-weight: 300;
+  color: #1A1A1A;
+  margin-bottom: 20px;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.journalInput {
+  width: 100%;
+  padding: 20px;
+  background: #F5F3ED;
+  border: none;
+  border-radius: 20px;
+  font-family: inherit;
+  font-size: 15px;
+  color: #1A1A1A;
+  outline: none;
+  resize: none;
+  min-height: 120px;
+  margin-bottom: 24px;
+  transition: all 0.2s;
+}
+
+.journalInput::placeholder {
+  color: #B5B5B5;
+}
+
+.journalInput:focus {
+  box-shadow: inset 0 0 0 2px #1A1A1A;
+}
+
+/* Imagination */
+.imaginationText {
+  font-size: 18px;
+  font-weight: 300;
+  color: #6B6B6B;
+  line-height: 1.6;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.imaginationText.primary {
+  color: #1A1A1A;
+  font-size: 20px;
+}
+
+/* Message Box */
+.messageBox {
+  background: #F5F3ED;
+  border-radius: 20px;
+  padding: 20px 24px;
+  text-align: left;
+  margin: 20px 0;
+}
+
+.messageLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: #B5B5B5;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+
+.messageText {
+  font-size: 14px;
+  color: #1A1A1A;
+  line-height: 1.6;
+}
+
+/* Microtask */
+.microtaskContainer {
+  text-align: center;
+  padding: 20px 0;
+}
+
+.progressDots {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 32px;
+}
+
+.progressDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #EBE8E0;
+  transition: all 0.3s;
+}
+
+.progressDot.active {
+  background: #1A1A1A;
+  transform: scale(1.3);
+}
+
+.progressDot.done {
+  background: #22C55E;
+}
+
+.microtaskStep {
+  font-size: 12px;
+  font-weight: 600;
+  color: #B5B5B5;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 12px;
+}
+
+.microtaskText {
+  font-size: 26px;
+  font-weight: 300;
+  color: #1A1A1A;
+  line-height: 1.3;
+  margin-bottom: 40px;
+}
+
+.microtaskCheck {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: #F5F3ED;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  margin: 0 auto;
+}
+
+.microtaskCheck:hover {
+  background: #DCFCE7;
+  transform: scale(1.05);
+}
+
+.microtaskCheck.done {
+  background: #22C55E;
+}
+
+.microtaskCheck svg {
+  width: 28px;
+  height: 28px;
+  color: #EBE8E0;
+  transition: all 0.2s;
+}
+
+.microtaskCheck:hover svg {
+  color: #22C55E;
+}
+
+.microtaskCheck.done svg {
+  color: white;
+}
+
+/* Buttons */
+.btnPrimary {
+  padding: 16px 32px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  background: #1A1A1A;
+  color: white;
+}
+
+.btnPrimary:hover {
+  background: #000;
+  transform: translateY(-2px);
+}
+
+.btnGhost {
+  padding: 14px 20px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  background: transparent;
+  color: #6B6B6B;
+}
+
+.btnGhost:hover {
+  color: #1A1A1A;
+}
+
+.btnSuccess {
+  padding: 16px 32px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  background: #22C55E;
+  color: white;
+}
+
+.btnSuccess:hover {
+  background: #16A34A;
+}
+
+.btnRow {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.btnCenter {
+  display: flex;
+  justify-content: center;
+}
+
+/* Ask Raimon */
+.askRaimon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 24px;
+  background: #F5F3ED;
+  border: none;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: #6B6B6B;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 12px;
+  width: 100%;
+}
+
+.askRaimon:hover {
+  background: #EBE8E0;
+  color: #1A1A1A;
+}
+
+/* Success */
+.successEmoji {
+  font-size: 56px;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+/* Back link */
+.backLink {
+  margin-top: 20px;
+  text-align: center;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .overlay {
+    padding: 24px;
+  }
+
+  .title {
+    font-size: 36px;
+  }
+
+  .card {
+    padding: 28px 24px;
+  }
+
+  .closeBtn {
+    top: 20px;
+    right: 20px;
+  }
+
+  .breathingCounter {
+    font-size: 80px;
+  }
+
+  .breathingPhase {
+    font-size: 24px;
+  }
+}
