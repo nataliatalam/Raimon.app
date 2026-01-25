@@ -4,13 +4,13 @@ from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 import logging
 import time
+from routers import auth, users, projects, tasks, next_do, dashboard, analytics, notifications, reminders, integrations, feedback
+from routers.agents import router as agents_router
+from core.config import get_settings
+from opik_utils.middleware import OpikMiddleware
 
 # Load environment variables
 load_dotenv()
-
-from routers import auth, users, projects, tasks, next_do, dashboard, analytics, notifications, reminders, integrations
-from routers.agents import router as agents_router
-from core.config import get_settings
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -35,6 +35,13 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
+)
+
+# Add Opik observability middleware
+# Tracks all API requests, LLM calls, and agent performance
+app.add_middleware(
+    OpikMiddleware,
+    exclude_paths=["/health", "/docs", "/redoc", "/openapi.json", "/"]
 )
 
 
@@ -125,6 +132,7 @@ app.include_router(notifications.router)
 app.include_router(reminders.router)
 app.include_router(integrations.router)
 app.include_router(agents_router)
+app.include_router(feedback.router)
 
 
 @app.get("/")

@@ -1,7 +1,7 @@
 from pydantic_settings import BaseSettings
 from pydantic import Field
 from functools import lru_cache
-
+# from typing import Optional
 
 class Settings(BaseSettings):
     # Supabase
@@ -29,9 +29,24 @@ class Settings(BaseSettings):
     # Request limits
     max_request_body_size: int = 1_000_000  # 1MB
 
+    # --- ADDED NEW FIELDS : OPIC & Gemini ---
+    
+    # Opik Configuration
+    opik_api_key: str
+    opik_workspace: str
+    opik_project_name: str
+    opik_enable_middleware: bool = True
+    opik_sampling_rate: float = 1.0
+    opik_log_level: str = "INFO"
+
+    # Google Gemini Configuration
+    # gemini_api_key: Optional[str] = None
+    google_api_key: str
+
     class Config:
         env_file = ".env"
         case_sensitive = False
+        extra = "ignore"    # Optional: This prevents future crashes if you add more keys to .env
 
     @property
     def refresh_secret_key(self) -> str:
