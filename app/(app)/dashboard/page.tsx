@@ -1,4 +1,3 @@
-// app/(app)/dashboard/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -11,7 +10,6 @@ export default function Page() {
   const router = useRouter();
   const [stage, setStage] = useState<'checkin' | 'tasks'>('checkin');
 
-  // Check if user has already completed checkin this session
   useEffect(() => {
     try {
       const checkedIn = sessionStorage.getItem('raimon_checked_in');
@@ -22,8 +20,7 @@ export default function Page() {
   }, []);
 
   if (stage === 'checkin') {
-    // ✅ Your DailyCheckIn currently does NOT accept props, so render it plain.
-    // We'll control navigation here so you can reach Tasks + Focus.
+
     return (
       <DailyCheckIn
         onComplete={() => {
@@ -39,7 +36,7 @@ export default function Page() {
   return (
     <TasksPage
       onDo={(task: Task) => {
-        // Save selected task so Focus page can read it
+  
         try {
           sessionStorage.setItem('raimon_active_task', JSON.stringify(task));
         } catch {}
@@ -47,7 +44,7 @@ export default function Page() {
         router.push('/dashboard/focus');
       }}
       onFinish={() => {
-        // optional: store something
+        
       }}
     />
   );

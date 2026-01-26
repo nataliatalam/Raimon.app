@@ -140,7 +140,7 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await fakeDelay(650);
-      // ✅ Demo Google: send to onboarding (feels like first-time flow)
+      
       goOnboarding();
     } finally {
       setIsLoading(false);

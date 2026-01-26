@@ -1,4 +1,3 @@
-// app/(app)/dashboard/focus/page.tsx
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -30,7 +29,6 @@ export default function FocusPage() {
       stored?.estimateMinutes ??
       25;
 
-    // ✅ fuerza a número seguro
     const minutesNum =
       typeof rawMinutes === 'number'
         ? rawMinutes
@@ -41,7 +39,7 @@ export default function FocusPage() {
       title,
       minutes: minutesNum,
       durationMinutes: minutesNum,
-      duration: `${minutesNum} min`, // ✅ tu FocusTask espera string opcional
+      duration: `${minutesNum} min`, 
     } as any;
   }, [stored]);
 
