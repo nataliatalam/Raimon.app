@@ -1,0 +1,485 @@
+/* app/components/DaySummary.module.css */
+
+.summaryCard {
+  --cream: #f5f3ed;
+  --cream-dark: #ebe8e0;
+  --text-dark: #1a1a1a;
+  --text-muted: #6b6b6b;
+  --text-light: #b5b5b5;
+  --green: #22c55e;
+  --blue: #3b82f6;
+  --purple: #8b5cf6;
+  --orange: #ff6129;
+  --red: #ef4444;
+
+  /* Bleed into RaimonShell white box (contentScroll has padding: 32px) */
+  margin: -32px;
+  width: calc(100% + 64px);
+  height: calc(100% + 64px);
+
+  background: white;
+  border-radius: 102px 0 0 0;
+  border: 3px solid var(--green);
+  padding: 48px;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+/* Header Row */
+.headerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 56px;
+}
+
+.headerLeft {
+  flex: 1;
+}
+
+.date {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--orange);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.date::after {
+  content: '';
+  width: 32px;
+  height: 2px;
+  background: var(--orange);
+}
+
+.title {
+  font-size: 56px;
+  font-weight: 800;
+  color: var(--text-dark);
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.titleAccent {
+  color: var(--orange);
+}
+
+.subtitle {
+  font-size: 20px;
+  font-weight: 300;
+  color: var(--text-light);
+  margin-top: 8px;
+}
+
+/* Streak Widget */
+.streakWidget {
+  text-align: right;
+}
+
+.streakTop {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.streakIcon {
+  width: 48px;
+  height: 48px;
+  background: #fff0eb;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+
+.streakNumber {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--text-dark);
+  line-height: 1;
+}
+
+.streakLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.streakDays {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.streakDash {
+  width: 20px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--cream-dark);
+}
+
+.streakDashDone {
+  background: var(--orange);
+}
+
+.streakDashToday {
+  background: var(--orange);
+  opacity: 0.5;
+}
+
+.streakDayLabels {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.streakDayLabel {
+  width: 20px;
+  font-size: 10px;
+  color: var(--text-light);
+  text-align: center;
+}
+
+.streakDayLabelToday {
+  color: var(--text-dark);
+  font-weight: 600;
+}
+
+/* Main Stats Row - 3 columns */
+.statsRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 48px;
+  align-items: center;
+  margin-bottom: 48px;
+}
+
+/* Section Label */
+.sectionLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-light);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 20px;
+}
+
+/* Stats Section */
+.statsSection {
+  display: flex;
+  flex-direction: column;
+}
+
+.statsGrid {
+  display: flex;
+  gap: 40px;
+}
+
+.stat {
+  text-align: left;
+}
+
+.statValue {
+  font-size: 48px;
+  font-weight: 300;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.statGreen {
+  color: var(--green);
+}
+
+.statBlue {
+  color: var(--blue);
+}
+
+.statPurple {
+  color: var(--purple);
+}
+
+.statLabel {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Week Chart */
+.chartSection {
+  display: flex;
+  flex-direction: column;
+}
+
+.chartContainer {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  height: 100px;
+}
+
+.chartDay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.chartBar {
+  width: 24px;
+  background: linear-gradient(180deg, #93c5fd 0%, #c4b5fd 100%);
+  border-radius: 6px;
+  transition: height 0.5s ease;
+}
+
+.chartBarToday {
+  background: linear-gradient(180deg, #a7f3d0 0%, #93c5fd 50%, #c4b5fd 100%);
+}
+
+.chartBarEmpty {
+  background: var(--cream);
+}
+
+.chartLabel {
+  font-size: 11px;
+  color: var(--text-light);
+}
+
+.chartLabelToday {
+  color: var(--text-dark);
+  font-weight: 600;
+}
+
+/* Baseline Section - Big Circle */
+.baselineSection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.baselineContainer {
+  position: relative;
+  width: 160px;
+  height: 160px;
+}
+
+.baselineProgressRing {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.baselineBg {
+  fill: none;
+  stroke: var(--cream);
+  stroke-width: 8;
+}
+
+.baselineProgress {
+  fill: none;
+  stroke: url(#baselineGradient);
+  stroke-width: 8;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s ease;
+}
+
+.baselineContent {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  width: 110px;
+}
+
+.baselinePercent {
+  font-size: 32px;
+  font-weight: 600;
+  color: var(--text-dark);
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.baselineTitle {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dark);
+  margin-bottom: 2px;
+}
+
+.baselineDesc {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* Thoughts Section - Outlined Box */
+.thoughtsSection {
+  flex: 1;
+}
+
+.thoughtsBox {
+  border: 2px solid var(--cream-dark);
+  border-radius: 24px;
+  padding: 28px;
+}
+
+.thoughtsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.thoughtCard {
+  background: var(--cream);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.thoughtText {
+  font-size: 14px;
+  color: var(--text-dark);
+  font-style: italic;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.thoughtActions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.thoughtBtn {
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  background: white;
+  color: var(--text-muted);
+}
+
+.thoughtBtn:hover {
+  color: var(--text-dark);
+}
+
+.thoughtBtnPrimary {
+  background: var(--text-dark);
+  color: white;
+}
+
+.thoughtBtnPrimary:hover {
+  background: #000;
+  color: white;
+}
+
+.thoughtBtnGhost {
+  background: transparent;
+  color: var(--text-light);
+}
+
+.thoughtBtnGhost:hover {
+  color: var(--red);
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .statsRow {
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+  }
+
+  .baselineSection {
+    grid-column: span 2;
+    justify-self: center;
+  }
+
+  .title {
+    font-size: 42px;
+  }
+}
+
+@media (max-width: 768px) {
+  .summaryCard {
+    margin: -56px;
+    width: calc(100% + 112px);
+    height: calc(100% + 112px);
+    border-radius: 20px 0 0 0;
+    padding: 24px;
+  }
+
+  .headerRow {
+    flex-direction: column;
+    gap: 24px;
+    margin-bottom: 32px;
+  }
+
+  .streakWidget {
+    text-align: left;
+  }
+
+  .streakTop {
+    justify-content: flex-start;
+  }
+
+  .streakDays,
+  .streakDayLabels {
+    justify-content: flex-start;
+  }
+
+  .title {
+    font-size: 36px;
+  }
+
+  .statsRow {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+
+  .baselineSection {
+    grid-column: span 1;
+  }
+
+  .statsGrid {
+    gap: 24px;
+  }
+
+  .statValue {
+    font-size: 36px;
+  }
+
+  .thoughtsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .thoughtActions {
+    flex-direction: column;
+  }
+
+  .thoughtBtn {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .summaryCard {
+    margin: -52px;
+    width: calc(100% + 104px);
+    height: calc(100% + 104px);
+    border-radius: 16px 0 0 0;
+  }
+}
