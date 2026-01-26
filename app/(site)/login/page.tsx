@@ -52,7 +52,7 @@ export default function LoginPage() {
   }
 
   function goOnboarding() {
-    router.push('/onboarding');
+    router.push('/onboarding-questions');
   }
 
   async function handleSubmit(e: FormEvent) {
