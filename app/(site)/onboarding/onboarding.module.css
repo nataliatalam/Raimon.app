@@ -112,11 +112,14 @@
 }
 
 .gradientText {
-  background: linear-gradient(135deg, var(--orange) 0%, var(--orange2) 50%, var(--pink) 100%);
+  background: linear-gradient(90deg, #EF874D 0%, #E96D53 55%, #DD5C58 100%);
   -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
   background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  display: inline-block;
 }
+
 
 /* Step 1: Hierarchy */
 .hierarchyContainer {
