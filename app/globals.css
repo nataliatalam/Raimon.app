@@ -40,5 +40,5 @@ body {
   margin: 0;
   font-family: var(--font);
   background: var(--bg);
-  overflow: hidden; /* matches your mock */
+  overflow-x:hidden; overflow-y:auto;
 }

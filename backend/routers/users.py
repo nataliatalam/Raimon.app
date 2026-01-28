@@ -9,7 +9,7 @@ from models.user import (
     FlowerPointsUpdate,
     GraveyardMetaUpdate,
 )
-from core.supabase import get_supabase
+from core.supabase import get_supabase, get_supabase_admin
 from core.security import get_current_user
 from datetime import datetime, timezone, date
 import logging
@@ -121,7 +121,16 @@ async def update_onboarding(
 ):
     """Update onboarding progress."""
     try:
-        supabase = get_supabase()
+        logger.debug(
+            "update_onboarding payload",
+            extra={
+                "user_id": current_user.get("id"),
+                "step": request.step,
+                "payload_keys": list(request.data.keys()) if request.data else [],
+            },
+        )
+        # Use service-role client so RLS doesn’t block server-side onboarding updates
+        supabase = get_supabase_admin()
 
         # Update onboarding step
         is_completed = request.step >= 3  # Assuming 3 steps total
@@ -157,7 +166,14 @@ async def update_onboarding(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in update_onboarding: {e}")
+        logger.exception(
+            "Error in update_onboarding",
+            extra={
+                "user_id": current_user.get("id"),
+                "step": request.step,
+                "payload_sample": request.data,
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update onboarding",

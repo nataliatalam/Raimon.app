@@ -6,7 +6,7 @@
   --orange-light: rgba(255, 140, 66, 0.15);
 
   --bg: #000000;
-  --content-box: #ffffff; /* ✅ was gray, now white */
+  --content-box: #ffffff;
 
   --black: #000000;
 
@@ -23,24 +23,30 @@
 :global(body) {
   height: 100%;
 }
+
 :global(body) {
   margin: 0;
   font-family: var(--font);
   background: var(--bg);
-  overflow: hidden;
+
+  /* ✅ FIX: allow page scrolling; only lock X if needed */
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
+/* ✅ FIX: don’t hard-lock the app to 100vh + hidden overflow.
+   Let the app stretch naturally and let the inner content area own scrolling. */
 .app {
-  height: 100vh;
-  display: flex;  
-  overflow: hidden; 
+  min-height: 100vh;
+  display: flex;
+  overflow: visible;
 }
 
 .shellLoading {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100vh;
+  min-height: 100vh;
   background: var(--bg);
   color: var(--text-on-dark);
   font-family: var(--font);
@@ -58,7 +64,10 @@
   z-index: 40;
   display: flex;
   flex-direction: column;
+
+  /* keep sidebar self-contained */
   overflow: hidden;
+
   padding: 24px 20px;
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -69,26 +78,25 @@
 }
 
 /* Logo */
-.logoWrapper{
+.logoWrapper {
   display: flex;
   justify-content: center;
   align-items: center;
   width: 100%;
 }
 
-.logoImg{
-  width: 140px;     
-  height: auto;      
+.logoImg {
+  width: 140px;
+  height: auto;
   max-width: 100%;
   object-fit: contain;
   display: block;
 }
 
-.sidebarCollapsed .logoImg{
-  width: 48px;      
+.sidebarCollapsed .logoImg {
+  width: 48px;
   height: auto;
 }
-
 
 /* Nav */
 .nav {
@@ -177,8 +185,6 @@
   opacity: 1;
 }
 
-
-
 /* Collapse toggle */
 .sidebarToggle {
   width: 28px;
@@ -214,27 +220,31 @@
 }
 
 /* ===== MAIN ===== */
+/* ✅ FIX: don’t hard-lock mainContent to 100vh + overflow hidden.
+   Let contentArea/contentScroll own the scroll. */
 .mainContent {
-  height: 100vh;
-  flex: 1; 
+  min-height: 100vh;
+  flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
+
   margin-left: var(--sidebar-w);
   transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
   position: relative;
-  overflow: hidden; 
+  overflow: visible;
 }
 
 .mainCollapsed {
   margin-left: var(--sidebar-collapsed-w);
 }
 
+/* Header can stay pinned inside the shell */
 .header {
-  position: absolute;
+  position: sticky;
   top: 0;
-  left: 0;
-  right: 0;
+  z-index: 20;
   height: 68px;
   display: flex;
   align-items: center;
@@ -287,13 +297,15 @@
   cursor: not-allowed;
 }
 
+/* ✅ FIX: give content area a real scroll owner.
+   It fills remaining viewport space under header and scrolls. */
 .contentArea {
   flex: 1;
-  min-height: 0; 
+  min-height: 0;
   display: flex;
+
+  /* ✅ this is the scroll container */
   overflow: hidden;
-  padding: 0;
-  margin-top: 68px;
 }
 
 .contentInner {
@@ -301,26 +313,35 @@
   min-width: 0;
   min-height: 0;
   background: var(--content-box);
-  border-radius: 102px 0 0 0; 
-  overflow: hidden;   
-  padding: 0;                 
+  border-radius: 102px 0 0 0;
+
+  /* ✅ keep rounded corner “mask” without killing page scroll */
+  overflow: hidden;
+
+  padding: 0;
 }
 
+/* ✅ scroll happens here */
 .contentScroll {
   height: 100%;
-  min-height: 0; 
-  overflow-y: auto;  
-  overflow-x: hidden;        
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 32px;
+
+  /* nicer scrolling on iOS too */
+  -webkit-overflow-scrolling: touch;
 }
 
+/* ✅ FIX: don’t set both overflow-y:auto AND overflow:hidden (that cancels scroll) */
 .contentScrollFlush {
+  height: 100%;
+  min-height: 0;
   padding: 0;
   overflow-y: auto;
-  overflow: hidden; 
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
-
-
 
 /* ===== MOBILE ===== */
 .mobileMenuBtn {
@@ -420,18 +441,15 @@
     width: auto;
   }
 
-  .sidebarToggle { display: none; }
-   
+  .sidebarToggle {
+    display: none;
+  }
 
   .mainContent {
     margin-left: 0;
   }
   .mainCollapsed {
     margin-left: 0;
-  }
-
-  .header {
-    padding-left: 70px;
   }
 
   .contentInner {
@@ -442,18 +460,12 @@
 
   .contentScroll {
     padding: 24px;
-    height: 100%;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
   }
 
   .contentScrollFlush {
     padding: 0;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
   }
 }
-
 
 @media (max-width: 480px) {
   .contentInner {
@@ -462,7 +474,7 @@
   }
 
   .contentScroll {
-    padding: 20px; 
+    padding: 20px;
   }
 
   .headerLogout span {
@@ -475,4 +487,6 @@
   }
 }
 
-.orangeCircle { display: none; }
+.orangeCircle {
+  display: none;
+}
