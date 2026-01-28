@@ -80,10 +80,15 @@ export default function DaySummary({
   onDiscardThought,
 }: Props) {
   const [animatedBars, setAnimatedBars] = useState(false);
-  const todayChartIndex = getTodayIndex();
-  const todayStreakIndex = getStreakDayIndex();
+  const [todayChartIndex, setTodayChartIndex] = useState<number | null>(null);
+  const [todayStreakIndex, setTodayStreakIndex] = useState<number | null>(null);
+  const [formattedDate, setFormattedDate] = useState('');
 
   useEffect(() => {
+    // Set date-related values on client only to avoid hydration mismatch
+    setTodayChartIndex(getTodayIndex());
+    setTodayStreakIndex(getStreakDayIndex());
+    setFormattedDate(getFormattedDate());
     const timer = setTimeout(() => setAnimatedBars(true), 100);
     return () => clearTimeout(timer);
   }, []);
@@ -97,7 +102,7 @@ export default function DaySummary({
       {/* Header Row */}
       <div className={styles.headerRow}>
         <div className={styles.headerLeft}>
-          <p className={styles.date}>{getFormattedDate()}</p>
+          <p className={styles.date} suppressHydrationWarning>{formattedDate}</p>
           <h1 className={styles.title}>
             Day Complete<span className={styles.titleAccent}>.</span>
           </h1>
@@ -117,8 +122,8 @@ export default function DaySummary({
               <div
                 key={i}
                 className={`${styles.streakDash} ${
-                  i < todayStreakIndex ? styles.streakDashDone : ''
-                } ${i === todayStreakIndex ? styles.streakDashToday : ''}`}
+                  todayStreakIndex !== null && i < todayStreakIndex ? styles.streakDashDone : ''
+                } ${todayStreakIndex !== null && i === todayStreakIndex ? styles.streakDashToday : ''}`}
               />
             ))}
           </div>
@@ -127,7 +132,7 @@ export default function DaySummary({
               <span
                 key={i}
                 className={`${styles.streakDayLabel} ${
-                  i === todayStreakIndex ? styles.streakDayLabelToday : ''
+                  todayStreakIndex !== null && i === todayStreakIndex ? styles.streakDayLabelToday : ''
                 }`}
               >
                 {label}
@@ -172,7 +177,7 @@ export default function DaySummary({
               <div key={i} className={styles.chartDay}>
                 <div
                   className={`${styles.chartBar} ${
-                    i === todayChartIndex ? styles.chartBarToday : ''
+                    todayChartIndex !== null && i === todayChartIndex ? styles.chartBarToday : ''
                   } ${value === 0 ? styles.chartBarEmpty : ''}`}
                   style={{
                     height: animatedBars ? `${Math.max(value, 10)}px` : '0px',
@@ -181,7 +186,7 @@ export default function DaySummary({
                 />
                 <span
                   className={`${styles.chartLabel} ${
-                    i === todayChartIndex ? styles.chartLabelToday : ''
+                    todayChartIndex !== null && i === todayChartIndex ? styles.chartLabelToday : ''
                   }`}
                 >
                   {DAY_LABELS[i]}

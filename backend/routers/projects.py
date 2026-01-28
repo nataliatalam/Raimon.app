@@ -170,11 +170,16 @@ async def create_project(
 
         # Create project_details record if details provided
         if request.details:
-            details_data = {
-                "project_id": project["id"],
-                **request.details,
-            }
-            supabase.table("project_details").insert(details_data).execute()
+            # Only include known columns to avoid schema errors
+            allowed_detail_fields = {"goals", "stakeholders", "resources", "milestones", "deadline", "people"}
+            filtered_details = {k: v for k, v in request.details.items() if k in allowed_detail_fields}
+
+            if filtered_details:
+                details_data = {
+                    "project_id": project["id"],
+                    **filtered_details,
+                }
+                supabase.table("project_details").insert(details_data).execute()
 
         return {
             "success": True,
@@ -928,11 +933,16 @@ async def create_project_with_files(
         if details:
             try:
                 details_dict = json.loads(details)
-                details_data = {
-                    "project_id": project["id"],
-                    **details_dict,
-                }
-                supabase.table("project_details").insert(details_data).execute()
+                # Only include known columns to avoid schema errors
+                allowed_detail_fields = {"goals", "stakeholders", "resources", "milestones", "deadline", "people"}
+                filtered_details = {k: v for k, v in details_dict.items() if k in allowed_detail_fields}
+
+                if filtered_details:
+                    details_data = {
+                        "project_id": project["id"],
+                        **filtered_details,
+                    }
+                    supabase.table("project_details").insert(details_data).execute()
             except json.JSONDecodeError:
                 logger.warning(f"Invalid JSON in details field: {details}")
 

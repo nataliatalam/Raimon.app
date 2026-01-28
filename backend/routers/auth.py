@@ -51,9 +51,9 @@ async def signup(request_data: SignupRequest, request: Request):
 
         user_id = auth_response.user.id
 
-        # Create tokens
-        token = create_access_token(data={"sub": user_id})
-        refresh_token = create_refresh_token(data={"sub": user_id})
+        # Create tokens (include email for auto-profile creation)
+        token = create_access_token(data={"sub": user_id, "email": request_data.email})
+        refresh_token = create_refresh_token(data={"sub": user_id, "email": request_data.email})
 
         user_data = UserResponse(
             id=user_id,
@@ -114,9 +114,9 @@ async def login(request_data: LoginRequest, request: Request):
             {"last_login_at": datetime.now(timezone.utc).isoformat()}
         ).eq("id", user_id).execute()
 
-        # Create tokens
-        token = create_access_token(data={"sub": user_id})
-        refresh_token = create_refresh_token(data={"sub": user_id})
+        # Create tokens (include email for auto-profile creation)
+        token = create_access_token(data={"sub": user_id, "email": request_data.email})
+        refresh_token = create_refresh_token(data={"sub": user_id, "email": request_data.email})
 
         user_data = user_profile.data[0] if user_profile.data else {}
 
@@ -180,6 +180,7 @@ async def refresh_token(request_data: RefreshTokenRequest, request: Request):
     try:
         payload = verify_token(request_data.refresh_token, token_type="refresh")
         user_id = payload.get("sub")
+        email = payload.get("email")
 
         if not user_id:
             raise HTTPException(
@@ -190,9 +191,9 @@ async def refresh_token(request_data: RefreshTokenRequest, request: Request):
         # Blacklist the old refresh token (token rotation)
         blacklist_token(request_data.refresh_token)
 
-        # Create new tokens
-        new_access_token = create_access_token(data={"sub": user_id})
-        new_refresh_token = create_refresh_token(data={"sub": user_id})
+        # Create new tokens (preserve email for auto-profile creation)
+        new_access_token = create_access_token(data={"sub": user_id, "email": email})
+        new_refresh_token = create_refresh_token(data={"sub": user_id, "email": email})
 
         return AuthResponse(
             success=True,

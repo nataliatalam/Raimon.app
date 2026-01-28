@@ -1,7 +1,7 @@
 from pydantic_settings import BaseSettings
 from pydantic import Field
 from functools import lru_cache
-# from typing import Optional
+from typing import Optional
 
 class Settings(BaseSettings):
     # Supabase
@@ -31,17 +31,16 @@ class Settings(BaseSettings):
 
     # --- ADDED NEW FIELDS : OPIC & Gemini ---
     
-    # Opik Configuration
-    opik_api_key: str
-    opik_workspace: str
-    opik_project_name: str
+    # Opik Configuration (optional for local testing)
+    opik_api_key: Optional[str] = None
+    opik_workspace: Optional[str] = None
+    opik_project_name: Optional[str] = None
     opik_enable_middleware: bool = True
     opik_sampling_rate: float = 1.0
     opik_log_level: str = "INFO"
 
-    # Google Gemini Configuration
-    # gemini_api_key: Optional[str] = None
-    google_api_key: str
+    # Google Gemini Configuration (optional for local testing)
+    google_api_key: Optional[str] = None
 
     class Config:
         env_file = ".env"

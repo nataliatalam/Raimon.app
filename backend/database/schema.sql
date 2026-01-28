@@ -58,6 +58,8 @@ CREATE TABLE IF NOT EXISTS public.project_details (
     stakeholders JSONB DEFAULT '[]',
     resources JSONB DEFAULT '[]',
     milestones JSONB DEFAULT '[]',
+    deadline TIMESTAMPTZ,
+    people JSONB DEFAULT '[]',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

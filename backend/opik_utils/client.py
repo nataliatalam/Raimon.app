@@ -41,21 +41,20 @@ class OpikManager:
         os.environ["OPIK_WORKSPACE"] = os.getenv("OPIK_WORKSPACE", "default")
         os.environ["OPIK_PROJECT_NAME"] = os.getenv("OPIK_PROJECT_NAME", "raimon")
 
-        # Initialize Opik client using the environment variables set above
-        self._opik_client = Opik()
+        # Initialize Opik client only if API key is available
+        if settings.opik_api_key:
+            self._opik_client = Opik()
+        else:
+            self._opik_client = None
+            print("⚠️ Opik API key not configured - observability disabled")
 
-        # Initialize Gemini Client (THE 2026 WAY)
-        # Note: No more genai.configure() - we create a client instance
-        # raw_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-
-        # Wrap the client instance with Opik tracking
-        # Opik now tracks the client instance, not the whole module
-        # self._tracked_client = track_genai(raw_client)
-
-        # New SDK INICIALIZ (2026): for direct use in tracked methods
-        self._raw_client = genai.Client(api_key=settings.google_api_key)
-
-        print("✅ Opik and Gemini (2026 SDK) initialized successfully")
+        # Initialize Gemini Client only if API key is available
+        if settings.google_api_key:
+            self._raw_client = genai.Client(api_key=settings.google_api_key)
+            print("✅ Gemini (2026 SDK) initialized successfully")
+        else:
+            self._raw_client = None
+            print("⚠️ Google API key not configured - Gemini disabled")
 
     @property
     def opik(self):
@@ -78,11 +77,14 @@ class OpikManager:
         Tracked version of content generation.
         Usage: manager.genai.generate_content("Hello")
         """
+        if self._raw_client is None:
+            raise RuntimeError("Gemini client not initialized - google_api_key not configured")
+
         response = self._raw_client.models.generate_content(
             model=model,
             contents=prompt
         )
-        
+
         # Returning data with usage metadata for Opik
         return {
             "text": response.text,

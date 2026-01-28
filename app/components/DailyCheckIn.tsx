@@ -69,7 +69,11 @@ type StreakWidgetProps = {
 };
 
 const StreakWidget: React.FC<StreakWidgetProps> = ({ streakCount }) => {
-  const currentDayIndex = new Date().getDay();
+  const [currentDayIndex, setCurrentDayIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    setCurrentDayIndex(new Date().getDay());
+  }, []);
 
   return (
     <div className={styles.streakSubtle}>
@@ -82,12 +86,12 @@ const StreakWidget: React.FC<StreakWidgetProps> = ({ streakCount }) => {
             <span className={styles.streakLabel}>Day Streak</span>
         </div>
       </div>
-      
+
       <div className={styles.streakDays}>
         {DAYS_OF_WEEK.map((day, index) => {
-          const isToday = index === currentDayIndex;
-          const isCompleted = index < currentDayIndex || (isToday && true); 
-          
+          const isToday = currentDayIndex !== null && index === currentDayIndex;
+          const isCompleted = currentDayIndex !== null && (index < currentDayIndex || isToday);
+
           return (
             <div key={index} className={styles.streakDayCol}>
                <div className={`${styles.streakDot} ${isToday ? styles.today : isCompleted ? styles.completed : ''}`} />
@@ -101,27 +105,29 @@ const StreakWidget: React.FC<StreakWidgetProps> = ({ streakCount }) => {
 };
 
 const Header: React.FC<{ userName?: string; streakCount: number }> = ({ userName, streakCount }) => {
-  const [time, setTime] = useState(new Date());
+  const [time, setTime] = useState<Date | null>(null);
 
   useEffect(() => {
+    setTime(new Date());
     const timer = setInterval(() => setTime(new Date()), 1000 * 60);
     return () => clearInterval(timer);
   }, []);
 
   const getGreeting = () => {
+    if (!time) return 'Hello';
     const hours = time.getHours();
     if (hours < 12) return 'Good Morning';
     if (hours < 18) return 'Good Afternoon';
     return 'Good Evening';
   };
 
-  const formattedDate = time.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const formattedDate = time?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) ?? '';
 
   return (
     <header className={styles.checkinHeader}>
       <div className={styles.headerLeft}>
         <div className={`${styles.dateDisplay} ${styles.slideUp}`} style={{ animationDelay: '0ms' }}>
-            <span className={styles.dateText}>{formattedDate}</span>
+            <span className={styles.dateText} suppressHydrationWarning>{formattedDate}</span>
             <div className={styles.dateLine}></div>
         </div>
         <h1 className={`${styles.greeting} ${styles.slideUp}`} style={{ animationDelay: '100ms' }}>
@@ -131,7 +137,7 @@ const Header: React.FC<{ userName?: string; streakCount: number }> = ({ userName
           Ready to check in, {userName ?? 'friend'}?
         </p>
       </div>
-      
+
       <div className={styles.slideUp} style={{ animationDelay: '300ms' }}>
         <StreakWidget streakCount={streakCount} />
       </div>

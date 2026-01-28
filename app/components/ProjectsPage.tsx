@@ -39,8 +39,9 @@ function mapProject(record: ProjectApiRecord): Project {
   };
 }
 
-function defaultMeta(project: Project): GraveyardMeta {
-  const archivedTime = project.archivedAt ? new Date(project.archivedAt).getTime() : Date.now();
+function defaultMeta(project: Project, now?: number): GraveyardMeta {
+  const currentTime = now ?? Date.now();
+  const archivedTime = project.archivedAt ? new Date(project.archivedAt).getTime() : currentTime;
   return {
     flowers: [],
     expiryDate: archivedTime + 30 * DAY_MS,
@@ -55,8 +56,11 @@ export default function ProjectsPage() {
   const [pendingMap, setPendingMap] = useState<Record<string, boolean>>({});
   const [flowerPoints, setFlowerPoints] = useState(30);
   const [graveyardMeta, setGraveyardMeta] = useState<Record<string, GraveyardMeta>>({});
+  const [clientNow, setClientNow] = useState<number | null>(null);
 
   useEffect(() => {
+    // Set client time to avoid hydration mismatch
+    setClientNow(Date.now());
     setGraveyardMeta(loadAllMeta());
     getFlowerPoints().then(setFlowerPoints);
     fetchAllGraveyardMeta().then(setGraveyardMeta);
@@ -72,9 +76,10 @@ export default function ProjectsPage() {
   }
 
   function updateMeta(id: string, updater: (prev: GraveyardMeta) => GraveyardMeta) {
+    const now = Date.now(); // Safe here - only called from event handlers
     setGraveyardMeta((prev) => {
       const next = { ...prev };
-      const updated = updater(prev[id] ?? { flowers: [], expiryDate: Date.now() + 30 * DAY_MS });
+      const updated = updater(prev[id] ?? { flowers: [], expiryDate: now + 30 * DAY_MS });
       next[id] = updated;
       saveProjectMeta(id, updated);
       syncGraveyardMeta(id, updated);
@@ -186,7 +191,7 @@ export default function ProjectsPage() {
   const graveyardProjects: GraveyardProject[] = useMemo(
     () =>
       pausedProjects.map((project) => {
-        const meta = graveyardMeta[project.id] ?? defaultMeta(project);
+        const meta = graveyardMeta[project.id] ?? defaultMeta(project, clientNow ?? undefined);
         return {
           id: project.id,
           name: project.name,
@@ -196,12 +201,12 @@ export default function ProjectsPage() {
           flowers: meta.flowers ?? [],
           expiryDate: meta.expiryDate,
           epitaph: meta.epitaph,
-          diedAt: project.archivedAt
+          diedAt: project.archivedAt && clientNow
             ? new Date(project.archivedAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
             : 'Recently',
         };
       }),
-    [pausedProjects, graveyardMeta],
+    [pausedProjects, graveyardMeta, clientNow],
   );
 
   return (

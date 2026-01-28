@@ -109,10 +109,32 @@ async def get_current_user(
         )
 
         if not response.data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found",
-            )
+            # Auto-create user profile if it doesn't exist
+            email = payload.get("email")
+            if not email:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid token - missing email",
+                )
+
+            # Create user profile
+            new_user = {
+                "id": user_id,
+                "email": email,
+                "name": payload.get("name") or email.split("@")[0],
+                "onboarding_completed": False,
+                "onboarding_step": 0,
+            }
+            create_response = supabase.table("users").insert(new_user).execute()
+
+            if not create_response.data:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to create user profile",
+                )
+
+            logger.info(f"Auto-created user profile for {email}")
+            return create_response.data[0]
 
         return response.data[0]
     except HTTPException:
