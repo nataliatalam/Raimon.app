@@ -9,7 +9,7 @@ export type DaySummaryData = {
   breaks: number;
   streak: number;
   baselinePercent: number;
-  weekData: number[]; // 7 values for Mon-Sun, as percentages (0-100)
+  weekData: number[]; // 7 values for Mon-Sun, as percentages (0-100%)
   thoughts: Thought[];
 };
 
