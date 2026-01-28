@@ -53,3 +53,8 @@ backend/**/__pycache__/
 pip-log.txt
 pip-delete-this-directory.txt
 .vercel
+backend/.venv/
+.venv/
+node_modules/
+.next/
+.env*

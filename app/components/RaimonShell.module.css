@@ -36,6 +36,17 @@
   overflow: hidden; 
 }
 
+.shellLoading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: var(--bg);
+  color: var(--text-on-dark);
+  font-family: var(--font);
+  font-size: 18px;
+}
+
 /* ===== SIDEBAR ===== */
 .sidebar {
   position: fixed;
@@ -227,9 +238,21 @@
   height: 68px;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   padding: 0 24px;
   background: var(--bg);
+}
+
+.headerUser {
+  display: flex;
+  flex-direction: column;
+  color: var(--text-muted-dark);
+  font-size: 14px;
+}
+
+.headerGreeting {
+  font-weight: 500;
+  color: var(--text-on-dark);
 }
 
 .headerLogout {
@@ -257,6 +280,11 @@
 .headerLogout:hover {
   border-color: var(--orange);
   color: var(--orange);
+}
+
+.headerLogout:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .contentArea {

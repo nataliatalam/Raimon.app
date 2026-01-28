@@ -2,15 +2,20 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import styles from './RaimonShell.module.css';
 import { Home, Folder, Plus, LogOut, ChevronLeft, Menu, X } from 'lucide-react';
+import { useSession } from './providers/SessionProvider';
+import { apiFetch } from '../../lib/api-client';
 
 export default function RaimonShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { session, status, clear } = useSession();
   const flush = pathname?.startsWith('/dashboard/focus');
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [logoutPending, setLogoutPending] = useState(false);
 
   const isMobile = () => (typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
 
@@ -38,6 +43,12 @@ export default function RaimonShell({ children }: { children: React.ReactNode })
     });
   }
 
+  useEffect(() => {
+    if (status === 'ready' && !session.accessToken) {
+      router.replace('/login');
+    }
+  }, [status, session.accessToken, router]);
+
   function isActive(href: string) {
     if (!pathname) return false;
     if (pathname === href) return true;
@@ -46,6 +57,30 @@ export default function RaimonShell({ children }: { children: React.ReactNode })
     if (href === '/projects' && pathname.startsWith('/projects/new')) return false;
     return pathname.startsWith(href + '/');
   }
+
+  async function handleLogout() {
+    if (logoutPending) return;
+    setLogoutPending(true);
+    try {
+      await apiFetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+      // ignore network errors
+    } finally {
+      clear();
+      setLogoutPending(false);
+      router.replace('/login');
+    }
+  }
+
+  if (status === 'loading') {
+    return <div className={styles.shellLoading}>Loading workspace…</div>;
+  }
+
+  if (!session.accessToken) {
+    return <div className={styles.shellLoading}>Redirecting…</div>;
+  }
+
+  const userName = session.user?.name ?? 'Friend';
 
   return (
     <div className={styles.app}>
@@ -136,9 +171,12 @@ export default function RaimonShell({ children }: { children: React.ReactNode })
       {/* Main */}
       <div className={`${styles.mainContent} ${collapsed ? styles.mainCollapsed : ''}`}>
         <header className={styles.header}>
-          <button className={styles.headerLogout} type="button">
+          <div className={styles.headerUser}>
+            <span className={styles.headerGreeting}>Welcome back, {userName}</span>
+          </div>
+          <button className={styles.headerLogout} onClick={handleLogout} type="button" disabled={logoutPending}>
             <LogOut />
-            <span>Log out</span>
+            <span>{logoutPending ? 'Logging out…' : 'Log out'}</span>
           </button>
         </header>
 

@@ -7,10 +7,11 @@ import styles from './ProjectCard.module.css';
 
 interface ProjectCardProps {
   project: Project;
-  onToggleStatus?: (id: number) => void;
-  onKill?: (id: number) => void;
-  onView?: (id: number) => void;
+  onToggleStatus?: (id: string) => void;
+  onKill?: (id: string) => void;
+  onView?: (id: string) => void;
   isBeyond?: boolean;
+  pending?: boolean;
 }
 
 export default function ProjectCard({
@@ -19,14 +20,16 @@ export default function ProjectCard({
   onKill,
   onView,
   isBeyond = false,
+  pending = false,
 }: ProjectCardProps) {
   const clamped = Math.max(0, Math.min(100, project.progress));
   const pillClass = project.type === 'work' ? styles.pillWork : styles.pillPersonal;
   const strokeColor = project.type === 'work' ? '#171717' : '#FB923C';
+  const isActive = project.status === 'active';
 
   function handleDragStart(e: React.DragEvent) {
     if (isBeyond) return;
-    e.dataTransfer.setData('projectId', project.id.toString());
+    e.dataTransfer.setData('projectId', project.id);
     e.dataTransfer.effectAllowed = 'move';
   }
 
@@ -37,7 +40,7 @@ export default function ProjectCard({
       className={[
         styles.card,
         isBeyond ? styles.beyond : '',
-        !project.active && !isBeyond ? styles.paused : '',
+        !isActive && !isBeyond ? styles.paused : '',
       ].filter(Boolean).join(' ')}
     >
       {/* Outline Progress SVG */}
@@ -103,7 +106,7 @@ export default function ProjectCard({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              onView?.(project.id);
+            onView?.(project.id);
             }}
             className={styles.iconBtn}
             title="View Project"
@@ -120,12 +123,13 @@ export default function ProjectCard({
             }}
             className={[
               styles.primaryBtn,
-              project.active ? styles.primaryPause : styles.primaryPlay,
+              isActive ? styles.primaryPause : styles.primaryPlay,
             ].join(' ')}
-            title={project.active ? 'Pause Flow' : 'Resume Flow'}
-            aria-label={project.active ? 'Pause flow' : 'Resume flow'}
+            title={isActive ? 'Pause Flow' : 'Resume Flow'}
+            aria-label={isActive ? 'Pause flow' : 'Resume flow'}
+            disabled={pending}
           >
-            {project.active ? <Pause size={20} /> : <Play size={20} />}
+            {isActive ? <Pause size={20} /> : <Play size={20} />}
           </button>
 
           <button
@@ -137,6 +141,7 @@ export default function ProjectCard({
             className={styles.dangerBtn}
             title="Move to Graveyard"
             aria-label="Move to graveyard"
+            disabled={pending}
           >
             <Skull size={18} />
           </button>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Flame } from 'lucide-react';
 import styles from './DailyCheckIn.module.css';
 import ActivationFlow from './ActivationFlow';
+import { apiFetch, ApiError } from '../../lib/api-client';
 
 // --- Types & Interfaces ---
 export interface Option {
@@ -63,9 +64,13 @@ export const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // --- Sub-Components ---
 
-const StreakWidget: React.FC = () => {
+type StreakWidgetProps = {
+  streakCount: number;
+};
+
+const StreakWidget: React.FC<StreakWidgetProps> = ({ streakCount }) => {
   const currentDayIndex = new Date().getDay();
-  
+
   return (
     <div className={styles.streakSubtle}>
       <div className={styles.streakHeader}>
@@ -73,7 +78,7 @@ const StreakWidget: React.FC = () => {
             <Flame className={styles.streakIcon} />
         </div>
         <div>
-            <div className={styles.streakCount}>12</div>
+            <div className={styles.streakCount}>{streakCount}</div>
             <span className={styles.streakLabel}>Day Streak</span>
         </div>
       </div>
@@ -95,7 +100,7 @@ const StreakWidget: React.FC = () => {
   );
 };
 
-const Header: React.FC = () => {
+const Header: React.FC<{ userName?: string; streakCount: number }> = ({ userName, streakCount }) => {
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
@@ -123,12 +128,12 @@ const Header: React.FC = () => {
           {getGreeting()}<span className={styles.greetingDot}>.</span>
         </h1>
         <p className={`${styles.subGreeting} ${styles.slideUp}`} style={{ animationDelay: '200ms' }}>
-          Ready to check in, Natalia?
+          Ready to check in, {userName ?? 'friend'}?
         </p>
       </div>
       
       <div className={styles.slideUp} style={{ animationDelay: '300ms' }}>
-        <StreakWidget />
+        <StreakWidget streakCount={streakCount} />
       </div>
     </header>
   );
@@ -138,13 +143,17 @@ const Header: React.FC = () => {
 
 type DailyCheckInProps = {
   onComplete?: () => void;
+  userName?: string;
+  streakCount?: number;
 };
 
-const DailyCheckIn: React.FC<DailyCheckInProps> = ({ onComplete }) => {
+const DailyCheckIn: React.FC<DailyCheckInProps> = ({ onComplete, userName, streakCount = 0 }) => {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [responses, setResponses] = useState<UserResponses>({});
   const [view, setView] = useState<AppView>(AppView.CHECK_IN);
   const [activationFlowOpen, setActivationFlowOpen] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const currentStep = STEPS[currentStepIndex];
   const isLastStep = currentStepIndex === STEPS.length - 1;
@@ -177,11 +186,35 @@ const DailyCheckIn: React.FC<DailyCheckInProps> = ({ onComplete }) => {
     }
   };
 
-  const handleFinish = () => {
-    if (onComplete) {
-      onComplete();
-    } else {
-      setView(AppView.INSIGHT);
+  function mapEnergy(value?: string) {
+    if (value === 'low') return 3;
+    if (value === 'high') return 9;
+    return 6;
+  }
+
+  const handleFinish = async () => {
+    if (!responses.energy || !responses.mood || !responses.focus) return;
+    setSubmitError('');
+    setSubmitting(true);
+    try {
+      await apiFetch('/api/users/state/check-in', {
+        method: 'POST',
+        body: {
+          energy_level: mapEnergy(responses.energy),
+          mood: responses.mood,
+          focus_areas: responses.focus ? [responses.focus] : undefined,
+        },
+      });
+      if (onComplete) {
+        onComplete();
+      } else {
+        setView(AppView.INSIGHT);
+      }
+    } catch (err) {
+      if (err instanceof ApiError) setSubmitError(err.message);
+      else setSubmitError('Failed to record check-in.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -202,7 +235,7 @@ const DailyCheckIn: React.FC<DailyCheckInProps> = ({ onComplete }) => {
         {/* Decorative Background */}
         <div className={styles.gradientOrb}></div>
 
-        {view === AppView.CHECK_IN && <Header />}
+        {view === AppView.CHECK_IN && <Header userName={userName} streakCount={streakCount} />}
 
         <main className={styles.checkinContent}>
           {view === AppView.CHECK_IN && (
@@ -300,12 +333,12 @@ const DailyCheckIn: React.FC<DailyCheckInProps> = ({ onComplete }) => {
             {/* RIGHT: Action Button */}
             <div className={styles.footerRight}>
               {isLastStep ? (
-                <button 
+                <button
                   onClick={handleFinish}
-                  disabled={!responses[currentStep.id]}
+                  disabled={!responses[currentStep.id] || submitting}
                   className={styles.primaryBtn}
                 >
-                  Go to dashboard
+                  {submitting ? 'Saving…' : 'Go to dashboard'}
                 </button>
               ) : (
                 <button 
@@ -318,6 +351,8 @@ const DailyCheckIn: React.FC<DailyCheckInProps> = ({ onComplete }) => {
             </div>
           </footer>
         )}
+
+        {submitError && <div className={styles.errorMessage}>{submitError}</div>}
 
         <ActivationFlow
           open={activationFlowOpen}

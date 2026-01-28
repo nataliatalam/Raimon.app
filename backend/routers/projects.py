@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException, status, Depends, Query
+from fastapi import APIRouter, HTTPException, status, Depends, Query, UploadFile, File, Form
 from datetime import datetime, timezone
 from typing import Optional, List
 from uuid import UUID
+import json
 from models.project import (
     ProjectCreate,
     ProjectUpdate,
@@ -12,7 +13,7 @@ from models.project import (
     ProjectStakeholdersUpdate,
     ProjectStatus,
 )
-from core.supabase import get_supabase
+from core.supabase import get_supabase, get_supabase_admin
 from core.security import get_current_user
 import logging
 
@@ -685,4 +686,315 @@ async def update_project_stakeholders(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update project stakeholders",
+        )
+
+
+# ============================================
+# FILE UPLOAD ENDPOINTS
+# ============================================
+
+ALLOWED_MIME_TYPES = [
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "text/plain",
+    "text/csv",
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+]
+
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
+
+@router.post("/{project_id}/files", status_code=status.HTTP_201_CREATED)
+async def upload_project_files(
+    project_id: UUID,
+    files: List[UploadFile] = File(...),
+    current_user: dict = Depends(get_current_user),
+):
+    """Upload files to a project."""
+    try:
+        # Verify ownership
+        await get_user_project(project_id, current_user["id"])
+
+        supabase = get_supabase_admin()
+        uploaded_files = []
+
+        for file in files:
+            # Validate file type
+            if file.content_type not in ALLOWED_MIME_TYPES:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"File type {file.content_type} is not allowed",
+                )
+
+            # Read file content
+            content = await file.read()
+
+            # Validate file size
+            if len(content) > MAX_FILE_SIZE:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"File {file.filename} exceeds maximum size of 10MB",
+                )
+
+            # Generate unique file path
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+            safe_filename = file.filename.replace(" ", "_") if file.filename else "file"
+            file_path = f"{current_user['id']}/{project_id}/{timestamp}_{safe_filename}"
+
+            # Upload to Supabase Storage
+            try:
+                storage_response = supabase.storage.from_("project-files").upload(
+                    file_path,
+                    content,
+                    {"content-type": file.content_type},
+                )
+            except Exception as storage_error:
+                logger.error(f"Storage upload failed: {storage_error}")
+                # Continue with database entry even if storage fails
+                # This allows the feature to work without storage configured
+                file_path = f"pending/{file_path}"
+
+            # Store file reference in database
+            file_data = {
+                "project_id": str(project_id),
+                "file_name": file.filename,
+                "file_path": file_path,
+                "file_size": len(content),
+                "mime_type": file.content_type,
+            }
+
+            db_response = supabase.table("project_files").insert(file_data).execute()
+
+            if db_response.data:
+                uploaded_files.append({
+                    "id": db_response.data[0]["id"],
+                    "file_name": file.filename,
+                    "file_path": file_path,
+                    "file_size": len(content),
+                    "mime_type": file.content_type,
+                })
+
+        return {
+            "success": True,
+            "data": {"files": uploaded_files},
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to upload files: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to upload files",
+        )
+
+
+@router.get("/{project_id}/files")
+async def list_project_files(
+    project_id: UUID,
+    current_user: dict = Depends(get_current_user),
+):
+    """List all files for a project."""
+    try:
+        # Verify ownership
+        await get_user_project(project_id, current_user["id"])
+
+        supabase = get_supabase()
+
+        response = (
+            supabase.table("project_files")
+            .select("*")
+            .eq("project_id", str(project_id))
+            .order("uploaded_at", desc=True)
+            .execute()
+        )
+
+        return {
+            "success": True,
+            "data": {"files": response.data or []},
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to list project files: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to list project files",
+        )
+
+
+@router.delete("/{project_id}/files/{file_id}")
+async def delete_project_file(
+    project_id: UUID,
+    file_id: UUID,
+    current_user: dict = Depends(get_current_user),
+):
+    """Delete a file from a project."""
+    try:
+        # Verify project ownership
+        await get_user_project(project_id, current_user["id"])
+
+        supabase = get_supabase_admin()
+
+        # Get file record
+        file_response = (
+            supabase.table("project_files")
+            .select("*")
+            .eq("id", str(file_id))
+            .eq("project_id", str(project_id))
+            .execute()
+        )
+
+        if not file_response.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="File not found",
+            )
+
+        file_record = file_response.data[0]
+
+        # Delete from storage (ignore errors if storage not configured)
+        try:
+            if not file_record["file_path"].startswith("pending/"):
+                supabase.storage.from_("project-files").remove([file_record["file_path"]])
+        except Exception as storage_error:
+            logger.warning(f"Could not delete file from storage: {storage_error}")
+
+        # Delete database record
+        supabase.table("project_files").delete().eq("id", str(file_id)).execute()
+
+        return {
+            "success": True,
+            "message": "File deleted",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete file: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete file",
+        )
+
+
+# Alternative create endpoint that accepts FormData with files
+@router.post("/with-files", status_code=status.HTTP_201_CREATED)
+async def create_project_with_files(
+    name: str = Form(...),
+    description: Optional[str] = Form(None),
+    priority: int = Form(0),
+    color: Optional[str] = Form(None),
+    icon: Optional[str] = Form(None),
+    target_end_date: Optional[str] = Form(None),
+    details: Optional[str] = Form(None),
+    files: List[UploadFile] = File(default=[]),
+    current_user: dict = Depends(get_current_user),
+):
+    """Create a new project with optional file uploads."""
+    try:
+        supabase = get_supabase()
+
+        # Prepare project data
+        project_data = {
+            "user_id": current_user["id"],
+            "name": name,
+            "description": description,
+            "priority": priority,
+            "color": color,
+            "icon": icon,
+            "status": "active",
+        }
+
+        if target_end_date:
+            project_data["target_end_date"] = target_end_date
+
+        # Insert project
+        response = supabase.table("projects").insert(project_data).execute()
+
+        if not response.data:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create project",
+            )
+
+        project = response.data[0]
+
+        # Parse and save project details
+        if details:
+            try:
+                details_dict = json.loads(details)
+                details_data = {
+                    "project_id": project["id"],
+                    **details_dict,
+                }
+                supabase.table("project_details").insert(details_data).execute()
+            except json.JSONDecodeError:
+                logger.warning(f"Invalid JSON in details field: {details}")
+
+        # Upload files if provided
+        uploaded_files = []
+        if files:
+            supabase_admin = get_supabase_admin()
+            for file in files:
+                if not file.filename:
+                    continue
+
+                # Validate file type
+                if file.content_type and file.content_type not in ALLOWED_MIME_TYPES:
+                    continue
+
+                content = await file.read()
+
+                # Skip files that are too large
+                if len(content) > MAX_FILE_SIZE:
+                    continue
+
+                # Generate file path
+                timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+                safe_filename = file.filename.replace(" ", "_")
+                file_path = f"{current_user['id']}/{project['id']}/{timestamp}_{safe_filename}"
+
+                # Try to upload to storage
+                try:
+                    supabase_admin.storage.from_("project-files").upload(
+                        file_path,
+                        content,
+                        {"content-type": file.content_type or "application/octet-stream"},
+                    )
+                except Exception as storage_error:
+                    logger.warning(f"Storage upload failed: {storage_error}")
+                    file_path = f"pending/{file_path}"
+
+                # Save file record
+                file_data = {
+                    "project_id": project["id"],
+                    "file_name": file.filename,
+                    "file_path": file_path,
+                    "file_size": len(content),
+                    "mime_type": file.content_type,
+                }
+
+                db_response = supabase.table("project_files").insert(file_data).execute()
+                if db_response.data:
+                    uploaded_files.append(db_response.data[0])
+
+        return {
+            "success": True,
+            "data": {
+                "project": project,
+                "files": uploaded_files,
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to create project with files: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create project",
         )

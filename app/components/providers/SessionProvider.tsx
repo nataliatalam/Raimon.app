@@ -1,0 +1,56 @@
+'use client';
+
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import type { SessionData, UserProfile } from '../../../types/api';
+import { clearSession, getStoredSession, saveSession, subscribeSession } from '../../../lib/session';
+
+type SessionContextValue = {
+  session: SessionData;
+  status: 'loading' | 'ready';
+  setSession: (payload: { accessToken: string; refreshToken: string; user: UserProfile }) => void;
+  clear: () => void;
+};
+
+const SessionContext = createContext<SessionContextValue | undefined>(undefined);
+
+export function SessionProvider({ children }: { children: React.ReactNode }) {
+  const [session, setSessionState] = useState<SessionData>(() => getStoredSession());
+  const [status, setStatus] = useState<'loading' | 'ready'>('loading');
+
+  useEffect(() => {
+    setSessionState(getStoredSession());
+    setStatus('ready');
+
+    const unsubscribe = subscribeSession((next) => {
+      setSessionState(next);
+      setStatus('ready');
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const value = useMemo<SessionContextValue>(
+    () => ({
+      session,
+      status,
+      setSession: ({ accessToken, refreshToken, user }) => {
+        saveSession({ accessToken, refreshToken, user });
+      },
+      clear: () => {
+        clearSession();
+      },
+    }),
+    [session, status],
+  );
+
+  return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
+}
+
+export function useSession() {
+  const ctx = useContext(SessionContext);
+  if (!ctx) {
+    throw new Error('useSession must be used within SessionProvider');
+  }
+  return ctx;
+}
+

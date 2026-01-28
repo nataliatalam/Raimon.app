@@ -26,6 +26,7 @@ type Props = {
 
   onStuck?: () => void;
   onBreak?: () => void;
+  onResume?: () => void;
   onDone?: () => void;
 };
 
@@ -35,6 +36,7 @@ export default function FocusChamber({
   onSend,
   onStuck,
   onBreak,
+  onResume,
   onDone,
 }: Props) {
   const [text, setText] = useState('');
@@ -54,6 +56,7 @@ export default function FocusChamber({
   const handleBreakToggle = () => {
     if (isOnBreak) {
       setIsOnBreak(false);
+      onResume?.();
     } else {
       setIsOnBreak(true);
       onBreak?.();

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { X, Sparkles, PenTool } from 'lucide-react';
 import type { GraveyardProject, Flower } from '../types';
 import styles from './Graveyard.module.css';
@@ -8,10 +8,10 @@ import styles from './Graveyard.module.css';
 interface GraveyardProps {
   projects: GraveyardProject[];
   flowerPoints: number;
-  onKillProject: (id: number) => void;
-  onBuyFlower: (projectId: number, flower: Flower) => void;
-  onResurrect: (projectId: number) => void;
-  onWriteEpitaph: (projectId: number, message: string) => void;
+  onKillProject: (id: string) => void;
+  onBuyFlower: (projectId: string, flower: Flower) => void;
+  onResurrect: (projectId: string) => void;
+  onWriteEpitaph: (projectId: string, message: string) => void;
 }
 
 const FLOWERS: Flower[] = [
@@ -30,12 +30,18 @@ export default function Graveyard({
   onWriteEpitaph,
 }: GraveyardProps) {
   const [isDragOver, setIsDragOver] = useState(false);
-  const [selectedGrave, setSelectedGrave] = useState<number | null>(null);
+  const [selectedGrave, setSelectedGrave] = useState<string | null>(null);
   const [epitaphInput, setEpitaphInput] = useState('');
+
+  // ✅ Fix lint: don’t call Date.now() during render
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    setNow(Date.now());
+  }, []);
 
   const selected = useMemo(
     () => projects.find((p) => p.id === selectedGrave) || null,
-    [projects, selectedGrave]
+    [projects, selectedGrave],
   );
 
   function onDragOver(e: React.DragEvent<HTMLDivElement>) {
@@ -47,7 +53,7 @@ export default function Graveyard({
     e.preventDefault();
     setIsDragOver(false);
     const projectId = e.dataTransfer.getData('projectId');
-    if (projectId) onKillProject(parseInt(projectId, 10));
+    if (projectId) onKillProject(projectId);
   }
 
   const RESURRECTION_COST = 25;
@@ -91,10 +97,10 @@ export default function Graveyard({
             <div className={styles.empty}>No dreams have been abandoned… yet.</div>
           ) : (
             projects.map((p) => {
-              const daysLeft = Math.max(
-                0,
-                Math.ceil((p.expiryDate - Date.now()) / (1000 * 60 * 60 * 24))
-              );
+              const daysLeft =
+                now == null
+                  ? 0
+                  : Math.max(0, Math.ceil((p.expiryDate - now) / (1000 * 60 * 60 * 24)));
 
               return (
                 <button
@@ -111,9 +117,7 @@ export default function Graveyard({
                       <div className={styles.hereLies}>Here lies</div>
                       <div className={styles.name}>{p.name}</div>
                       <div className={styles.meta}>{p.type.toUpperCase()}</div>
-                      {p.epitaph && (
-                        <div className={styles.epitaph}>&ldquo;{p.epitaph}&rdquo;</div>
-                      )}
+                      {p.epitaph && <div className={styles.epitaph}>&ldquo;{p.epitaph}&rdquo;</div>}
                     </div>
 
                     <div className={styles.fadeRow}>
@@ -171,7 +175,7 @@ export default function Graveyard({
                       className={[styles.offerBtn, !can ? styles.disabled : ''].join(' ')}
                       disabled={!can}
                       onClick={() => {
-                        onBuyFlower(selectedGrave, f);
+                        if (selectedGrave) onBuyFlower(selectedGrave, f);
                         setSelectedGrave(null);
                       }}
                       type="button"
@@ -200,9 +204,9 @@ export default function Graveyard({
                 />
                 <button
                   className={styles.writeBtn}
-                  disabled={flowerPoints < EPITAPH_COST || !epitaphInput.trim()}
+                  disabled={flowerPoints < EPITAPH_COST || !epitaphInput.trim() || !selectedGrave}
                   onClick={() => {
-                    onWriteEpitaph(selectedGrave, epitaphInput);
+                    if (selectedGrave) onWriteEpitaph(selectedGrave, epitaphInput);
                     setSelectedGrave(null);
                   }}
                   title="Save epitaph"
@@ -225,9 +229,9 @@ export default function Graveyard({
 
               <button
                 className={styles.reviveBtn}
-                disabled={flowerPoints < RESURRECTION_COST}
+                disabled={flowerPoints < RESURRECTION_COST || !selectedGrave}
                 onClick={() => {
-                  onResurrect(selectedGrave);
+                  if (selectedGrave) onResurrect(selectedGrave);
                   setSelectedGrave(null);
                 }}
                 type="button"

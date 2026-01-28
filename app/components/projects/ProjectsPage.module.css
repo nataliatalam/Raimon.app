@@ -21,6 +21,23 @@
   margin-bottom: 28px;
 }
 
+.errorBanner {
+  padding: 10px 16px;
+  border-radius: 14px;
+  background: rgba(185, 28, 28, 0.1);
+  border: 1px solid rgba(185, 28, 28, 0.3);
+  color: #7f1d1d;
+  font-weight: 600;
+}
+
+.loadingState {
+  padding: 80px 0;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.6);
+}
+
 .kicker {
   font-size: 13px;
   font-weight: 600;
@@ -120,8 +137,20 @@
 .sectionHead {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 10px;
   margin-bottom: 14px;
+}
+
+.sectionHead h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.sectionHead span {
+  font-size: 13px;
+  color: #6b6b6b;
 }
 
 .h2 {
@@ -159,6 +188,22 @@
   display: grid;
   gap: 18px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.cards {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+
+.emptyState {
+  padding: 18px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px dashed rgba(0, 0, 0, 0.1);
+  color: rgba(0, 0, 0, 0.6);
+  font-weight: 600;
+  text-align: center;
 }
 
 /* Text helpers */

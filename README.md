@@ -34,3 +34,15 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Connecting to the FastAPI backend
+
+The frontend expects the FastAPI server from `/backend` to be running (default `http://localhost:8000`). Set the API base URL via an environment variable before starting Next.js (the Next.js rewrite proxy automatically falls back to the same value; set `RAIMON_BACKEND_URL` only if you need a different rewrite destination):
+
+```bash
+export NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+# or add NEXT_PUBLIC_API_BASE_URL to .env.local
+npm run dev
+```
+
+Authentication requests, dashboard data, projects, and task actions will all be proxied to that backend URL.

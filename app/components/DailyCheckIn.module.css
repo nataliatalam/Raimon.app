@@ -430,6 +430,13 @@
   color: var(--text-dark);
 }
 
+.errorMessage {
+  margin-top: 16px;
+  text-align: center;
+  color: #b91c1c;
+  font-weight: 600;
+}
+
 .primaryBtn {
   display: flex;
   align-items: center;

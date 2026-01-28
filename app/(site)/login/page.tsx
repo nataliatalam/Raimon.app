@@ -1,16 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import styles from './login.module.css';
+import { apiFetch, ApiError } from '../../../lib/api-client';
+import type { ApiSuccessResponse, AuthSuccessPayload } from '../../../types/api';
+import { useSession } from '../../components/providers/SessionProvider';
 
 type Step = 'auth' | 'verify';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { session, status, setSession } = useSession();
 
   const [step, setStep] = useState<Step>('auth');
   const [isLoginMode, setIsLoginMode] = useState(true);
@@ -32,6 +36,16 @@ export default function LoginPage() {
   const [verificationCode, setVerificationCode] = useState('');
 
   const isVerify = step === 'verify';
+
+  useEffect(() => {
+    if (status !== 'ready') return;
+    if (!session.accessToken) return;
+    if (session.user?.onboarding_completed) {
+      router.replace('/dashboard');
+    } else {
+      router.replace('/onboarding-questions');
+    }
+  }, [status, session.accessToken, session.user?.onboarding_completed, router]);
 
   const toggleMode = () => {
     setError('');
@@ -82,18 +96,34 @@ export default function LoginPage() {
 
     setIsLoading(true);
     try {
-      await fakeDelay();
+      const endpoint = isLoginMode ? '/api/auth/login' : '/api/auth/signup';
+      const payload = isLoginMode
+        ? { email: email.trim(), password: password.trim() }
+        : { email: email.trim(), password: password.trim(), name: name.trim() };
 
-      if (isLoginMode) {
-        // ✅ Demo login: always succeeds
+      const response = await apiFetch<ApiSuccessResponse<AuthSuccessPayload>>(endpoint, {
+        method: 'POST',
+        body: payload,
+        skipAuth: true,
+      });
+
+      setSession({
+        accessToken: response.data.token,
+        refreshToken: response.data.refresh_token,
+        user: response.data.user,
+      });
+
+      if (response.data.user.onboarding_completed) {
         goDashboard();
-        return;
+      } else {
+        goOnboarding();
       }
-
-      // ✅ Demo signup: show verify UI (no real email sent)
-      setPendingEmail(email.trim());
-      setStep('verify');
-      setError('Demo mode: no email is sent. Enter any code (try 123456) to continue.');
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError('Something went wrong. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -139,9 +169,7 @@ export default function LoginPage() {
     setError('');
     setIsLoading(true);
     try {
-      await fakeDelay(650);
-      
-      goOnboarding();
+      setError('Google sign-in is not available yet.');
     } finally {
       setIsLoading(false);
     }

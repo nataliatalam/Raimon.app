@@ -3,6 +3,8 @@
 import { useMemo, useState } from 'react';
 import Image from 'next/image';
 import styles from './onboardingQuestions.module.css';
+import { apiFetch, ApiError } from '../../../lib/api-client';
+import { useRouter } from 'next/navigation';
 
 type LikeWork = '' | 'yes' | 'ok' | 'no';
 
@@ -81,6 +83,7 @@ function clamp(n: number, min: number, max: number) {
 type StepIndex = 1 | 2 | 3 | 4 | 5 | 6;
 
 export default function OnboardingQuestions() {
+  const router = useRouter();
   /**
    * 1 life context
    * 2 goal
@@ -111,6 +114,8 @@ export default function OnboardingQuestions() {
 
   const [enemies, setEnemies] = useState<string[]>([]);
   const [enemyOther, setEnemyOther] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [serverError, setServerError] = useState('');
 
   const progressFilled = useMemo(() => {
     if (step >= 6) return TOTAL_QUESTIONS;
@@ -154,6 +159,41 @@ export default function OnboardingQuestions() {
 
   function skip() {
     next();
+  }
+
+  const payloadData = useMemo(
+    () => ({
+      life_setup: lifeSetup,
+      life_other: lifeOther.trim() || undefined,
+      likes_work: likesWork || undefined,
+      goal: goal === 'Other' ? goalOther.trim() : goal,
+      breakers: [...breakers, breakerOther.trim()].filter(Boolean),
+      focus_time: focusTime,
+      creative_time: creativeTime,
+      boosts: [...boosts, boostOther.trim()].filter(Boolean),
+      enemies: [...enemies, enemyOther.trim()].filter(Boolean),
+    }),
+    [lifeSetup, lifeOther, likesWork, goal, goalOther, breakers, breakerOther, focusTime, creativeTime, boosts, boostOther, enemies, enemyOther],
+  );
+
+  async function submitResponses() {
+    setServerError('');
+    setIsSaving(true);
+    try {
+      await apiFetch('/api/users/onboarding', {
+        method: 'PUT',
+        body: {
+          step: 6,
+          data: payloadData,
+        },
+      });
+      router.push('/onboarding');
+    } catch (err) {
+      if (err instanceof ApiError) setServerError(err.message);
+      else setServerError('Failed to save responses.');
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   const canContinue = useMemo(() => {
@@ -261,7 +301,7 @@ export default function OnboardingQuestions() {
               {/* Step 1 */}
               {step === 1 && (
                 <div className={styles.stack}>
-                  <div className={styles.rowTitle}>Q1) What's your real life setup right now? (choose all that apply)</div>
+                  <div className={styles.rowTitle}>{"Q1) What's your real life setup right now? (choose all that apply)"}</div>
                   <div className={styles.chipRow}>
                     {LIFE_OPTIONS.map((opt) => (
                       <Pill
@@ -453,22 +493,18 @@ export default function OnboardingQuestions() {
                   className={styles.primaryBtn}
                   onClick={() => {
                     if (step === 6) {
-                      window.location.href = '/onboarding';
+                      submitResponses();
                       return;
                     }
                     next();
                   }}
-                  disabled={!canContinue}
+                  disabled={!canContinue || (step === 6 && isSaving)}
                 >
-                  Continue
+                  {step === 6 && isSaving ? 'Saving…' : 'Continue'}
                 </button>
               </div>
 
-              {step >= 1 && step <= 6 && (
-                <div className={styles.helper}>
-                  Demo-only UI: selections live in component state. Nothing is saved.
-                </div>
-              )}
+              {serverError && <div className={styles.errorBanner}>{serverError}</div>}
             </div>
           </div>
         </div>

@@ -5,16 +5,22 @@ import styles from './TasksPage.module.css';
 import DaySummary, { DaySummaryData, Thought } from './DaySummary';
 
 export type Task = {
+  id?: string;
   title: string; // use "\n" for line breaks
   desc: string;
   project: string;
-  duration: string; // e.g. "25 min"
+  duration?: string; // e.g. "25 min"
+  durationMinutes?: number;
+  projectId?: string;
 };
 
 type Props = {
   tasks?: Task[];
   summaryData?: DaySummaryData;
   userName?: string;
+  loading?: boolean;
+  errorMessage?: string;
+  emptyMessage?: string;
 
   /** Preferred prop names */
   onDo?: (task: Task) => void;
@@ -53,9 +59,12 @@ export const DEFAULT_TASKS: Task[] = [
 ];
 
 export default function TasksPage({
-  tasks = DEFAULT_TASKS,
+  tasks = [],
   summaryData,
   userName,
+  loading = false,
+  errorMessage,
+  emptyMessage = "You're all caught up for today. Create a project to add tasks.",
   onDo,
   onFinish,
   onStartTask,
@@ -68,9 +77,8 @@ export default function TasksPage({
   const [idx, setIdx] = useState(0);
   const [finished, setFinished] = useState(false);
 
-  const safeTasks = tasks.length ? tasks : DEFAULT_TASKS;
-
-  const task = useMemo(() => safeTasks[idx % safeTasks.length], [safeTasks, idx]);
+  const safeTasks = tasks;
+  const task = useMemo(() => (safeTasks.length ? safeTasks[idx % safeTasks.length] : null), [safeTasks, idx]);
 
   const doCb = onDo ?? onStartTask;
   const finishCb = onFinish ?? onFinishDay;
@@ -80,6 +88,7 @@ export default function TasksPage({
   }
 
   function handleDo() {
+    if (!task) return;
     if (doCb) doCb(task);
     else alert(`Starting: ${task.title.replaceAll('\n', ' ')}`);
   }
@@ -103,6 +112,24 @@ export default function TasksPage({
     );
   }
 
+  if (loading) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.loadingState}>Loading your tasks…</div>
+      </div>
+    );
+  }
+
+  if (!task) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.emptyState}>
+          <p>{emptyMessage}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
@@ -110,6 +137,8 @@ export default function TasksPage({
           <span className={styles.pageLabel}>Up next</span>
           <h1 className={styles.pageTitle}>Your Tasks</h1>
         </div>
+
+        {errorMessage && <div className={styles.errorBanner}>{errorMessage}</div>}
 
         <button
           className={[styles.finishBtn, finished ? styles.finishBtnDone : ''].join(' ')}

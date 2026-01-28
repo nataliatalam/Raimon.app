@@ -1,10 +1,13 @@
 from fastapi import APIRouter, HTTPException, status, Depends
+from typing import List
 from models.user import (
     UserProfile,
     UserProfileUpdate,
     UserPreferencesUpdate,
     OnboardingUpdate,
     CheckInRequest,
+    FlowerPointsUpdate,
+    GraveyardMetaUpdate,
 )
 from core.supabase import get_supabase
 from core.security import get_current_user
@@ -341,4 +344,299 @@ async def update_energy_level(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update energy level",
+        )
+
+
+# ============================================
+# FLOWER POINTS ENDPOINTS
+# ============================================
+
+
+@router.get("/flower-points")
+async def get_flower_points(current_user: dict = Depends(get_current_user)):
+    """Get the current user's flower points balance."""
+    try:
+        supabase = get_supabase()
+
+        response = (
+            supabase.table("user_flower_points")
+            .select("*")
+            .eq("user_id", current_user["id"])
+            .execute()
+        )
+
+        if not response.data:
+            # Create default balance if not exists
+            new_balance = supabase.table("user_flower_points").insert(
+                {"user_id": current_user["id"], "balance": 30}
+            ).execute()
+            return {
+                "success": True,
+                "data": {"balance": 30},
+            }
+
+        return {
+            "success": True,
+            "data": {"balance": response.data[0]["balance"]},
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in get_flower_points: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get flower points",
+        )
+
+
+@router.post("/flower-points")
+async def update_flower_points(
+    request: FlowerPointsUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    """Update flower points (earn or spend)."""
+    try:
+        supabase = get_supabase()
+
+        # Get current balance
+        current = (
+            supabase.table("user_flower_points")
+            .select("balance")
+            .eq("user_id", current_user["id"])
+            .execute()
+        )
+
+        if not current.data:
+            # Create with default if not exists
+            current_balance = 30
+            supabase.table("user_flower_points").insert(
+                {"user_id": current_user["id"], "balance": current_balance}
+            ).execute()
+        else:
+            current_balance = current.data[0]["balance"]
+
+        # Calculate new balance
+        if request.type == "earned":
+            new_balance = current_balance + request.amount
+        else:
+            if current_balance < request.amount:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Insufficient flower points",
+                )
+            new_balance = current_balance - request.amount
+
+        # Update balance
+        supabase.table("user_flower_points").update(
+            {"balance": new_balance}
+        ).eq("user_id", current_user["id"]).execute()
+
+        # Record transaction
+        transaction_data = {
+            "user_id": current_user["id"],
+            "amount": request.amount,
+            "type": request.type,
+            "reason": request.reason,
+            "project_id": request.project_id,
+        }
+        supabase.table("flower_transactions").insert(transaction_data).execute()
+
+        return {
+            "success": True,
+            "data": {"balance": new_balance},
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in update_flower_points: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update flower points",
+        )
+
+
+# ============================================
+# GRAVEYARD ENDPOINTS
+# ============================================
+
+
+@router.get("/graveyard")
+async def get_all_graveyard_meta(current_user: dict = Depends(get_current_user)):
+    """Get all graveyard metadata for the user."""
+    try:
+        supabase = get_supabase()
+
+        # Get all graveyard meta entries
+        meta_response = (
+            supabase.table("graveyard_meta")
+            .select("*")
+            .eq("user_id", current_user["id"])
+            .execute()
+        )
+
+        graveyard_items = []
+        for meta in meta_response.data or []:
+            # Get flowers for this graveyard entry
+            flowers_response = (
+                supabase.table("graveyard_flowers")
+                .select("*")
+                .eq("graveyard_meta_id", meta["id"])
+                .execute()
+            )
+
+            graveyard_items.append({
+                "project_id": meta["project_id"],
+                "epitaph": meta.get("epitaph"),
+                "expiry_date": meta["expiry_date"],
+                "flowers": [
+                    {
+                        "id": f["flower_id"],
+                        "name": f["flower_name"],
+                        "emoji": f["flower_emoji"],
+                        "cost": f["cost"],
+                        "days_added": f["days_added"],
+                        "placed_at": f.get("placed_at"),
+                    }
+                    for f in (flowers_response.data or [])
+                ],
+            })
+
+        return {
+            "success": True,
+            "data": {"graveyard": graveyard_items},
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in get_all_graveyard_meta: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get graveyard data",
+        )
+
+
+@router.put("/graveyard/{project_id}")
+async def update_graveyard_meta(
+    project_id: str,
+    request: GraveyardMetaUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    """Update or create graveyard metadata for a project."""
+    try:
+        supabase = get_supabase()
+
+        # Verify project belongs to user
+        project = (
+            supabase.table("projects")
+            .select("id")
+            .eq("id", project_id)
+            .eq("user_id", current_user["id"])
+            .execute()
+        )
+
+        if not project.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found",
+            )
+
+        # Check if meta already exists
+        existing = (
+            supabase.table("graveyard_meta")
+            .select("id")
+            .eq("user_id", current_user["id"])
+            .eq("project_id", project_id)
+            .execute()
+        )
+
+        meta_data = {
+            "user_id": current_user["id"],
+            "project_id": project_id,
+            "epitaph": request.epitaph,
+            "expiry_date": request.expiry_date.isoformat(),
+        }
+
+        if existing.data:
+            # Update existing
+            meta_response = (
+                supabase.table("graveyard_meta")
+                .update(meta_data)
+                .eq("id", existing.data[0]["id"])
+                .execute()
+            )
+            meta_id = existing.data[0]["id"]
+
+            # Delete existing flowers
+            supabase.table("graveyard_flowers").delete().eq(
+                "graveyard_meta_id", meta_id
+            ).execute()
+        else:
+            # Create new
+            meta_response = (
+                supabase.table("graveyard_meta")
+                .insert(meta_data)
+                .execute()
+            )
+            meta_id = meta_response.data[0]["id"]
+
+        # Insert new flowers
+        if request.flowers:
+            flower_data = [
+                {
+                    "graveyard_meta_id": meta_id,
+                    "flower_id": f.id,
+                    "flower_name": f.name,
+                    "flower_emoji": f.emoji,
+                    "cost": f.cost,
+                    "days_added": f.days_added,
+                    "placed_at": f.placed_at.isoformat() if f.placed_at else datetime.now(timezone.utc).isoformat(),
+                }
+                for f in request.flowers
+            ]
+            supabase.table("graveyard_flowers").insert(flower_data).execute()
+
+        return {
+            "success": True,
+            "data": {
+                "project_id": project_id,
+                "epitaph": request.epitaph,
+                "expiry_date": request.expiry_date.isoformat(),
+                "flowers": [f.model_dump() for f in request.flowers],
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in update_graveyard_meta: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update graveyard data",
+        )
+
+
+@router.delete("/graveyard/{project_id}")
+async def delete_graveyard_meta(
+    project_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Delete graveyard metadata for a project (e.g., on resurrection)."""
+    try:
+        supabase = get_supabase()
+
+        # Delete meta (flowers will cascade delete)
+        supabase.table("graveyard_meta").delete().eq(
+            "user_id", current_user["id"]
+        ).eq("project_id", project_id).execute()
+
+        return {
+            "success": True,
+            "data": {"deleted": True},
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in delete_graveyard_meta: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete graveyard data",
         )

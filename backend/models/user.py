@@ -83,3 +83,66 @@ class CurrentState(BaseModel):
     current_task_id: Optional[str] = None
     energy_level: Optional[int] = Field(default=None, ge=1, le=10)
     started_at: Optional[datetime] = None
+
+
+# ============================================
+# FLOWER POINTS MODELS
+# ============================================
+
+
+class FlowerPointsUpdate(BaseModel):
+    amount: int = Field(..., ge=1)
+    type: str = Field(..., pattern="^(earned|spent)$")
+    reason: str = Field(..., min_length=1, max_length=100)
+    project_id: Optional[str] = None
+
+    @field_validator("reason")
+    @classmethod
+    def sanitize_reason(cls, v):
+        return sanitize_string(v)
+
+
+class FlowerTransaction(BaseModel):
+    id: str
+    amount: int
+    type: str
+    reason: str
+    project_id: Optional[str] = None
+    created_at: datetime
+
+
+class FlowerPointsResponse(BaseModel):
+    balance: int
+    transactions: Optional[List[FlowerTransaction]] = None
+
+
+# ============================================
+# GRAVEYARD MODELS
+# ============================================
+
+
+class FlowerPlacement(BaseModel):
+    id: str
+    name: str
+    emoji: str
+    cost: int = Field(..., ge=0)
+    days_added: int = Field(..., ge=0)
+    placed_at: Optional[datetime] = None
+
+
+class GraveyardMetaUpdate(BaseModel):
+    flowers: List[FlowerPlacement] = Field(default_factory=list)
+    epitaph: Optional[str] = Field(default=None, max_length=500)
+    expiry_date: datetime
+
+    @field_validator("epitaph")
+    @classmethod
+    def sanitize_epitaph(cls, v):
+        return sanitize_string(v)
+
+
+class GraveyardMetaResponse(BaseModel):
+    project_id: str
+    flowers: List[FlowerPlacement]
+    epitaph: Optional[str] = None
+    expiry_date: datetime

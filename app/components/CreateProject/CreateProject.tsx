@@ -2,10 +2,11 @@
 
 import React, { useMemo, useRef, useState } from 'react';
 import styles from './CreateProject.module.css';
-import { addProject, type StoredProject } from '../../../lib/projectsStore';
+import { apiFetch, ApiError } from '../../../lib/api-client';
+import type { ApiSuccessResponse, ProjectApiRecord } from '../../../types/api';
 
 type Props = {
-  onCreated?: (project: StoredProject) => void;
+  onCreated?: (projectId: string) => void;
 };
 
 const WORK_COLORS = ['#F97316', '#8B5CF6', '#3B82F6', '#EC4899'];
@@ -28,11 +29,13 @@ export default function CreateProject({ onCreated }: Props) {
   const [deadlineYear, setDeadlineYear] = useState('');
   const [why, setWhy] = useState<string[]>([]);
   const [people, setPeople] = useState<'me' | 'others'>('me');
-  const [files, setFiles] = useState<string[]>([]);
+  const [files, setFiles] = useState<File[]>([]);
+  const [serverError, setServerError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const nameInputRef = useRef<HTMLInputElement | null>(null);
 
-  const canCreate = name.trim().length > 0;
+  const canCreate = name.trim().length > 0 && !isSubmitting;
 
   function addTaskRow() {
     setTasks((prev) => [...prev, '']);
@@ -44,35 +47,79 @@ export default function CreateProject({ onCreated }: Props) {
 
   function addFiles(list: FileList | null) {
     if (!list) return;
-    const names = Array.from(list).map((f) => f.name);
-    setFiles((prev) => [...prev, ...names]);
+    setFiles((prev) => [...prev, ...Array.from(list)]);
   }
 
-  function removeFile(nameToRemove: string) {
-    setFiles((prev) => prev.filter((n) => n !== nameToRemove));
+  function removeFile(indexToRemove: number) {
+    setFiles((prev) => prev.filter((_, index) => index !== indexToRemove));
   }
 
-  function createProject() {
+  const deadlineIso = useMemo(() => {
+    if (!deadlineMonth || !deadlineDay || !deadlineYear) return undefined;
+    return `${deadlineYear}-${deadlineMonth}-${deadlineDay}`;
+  }, [deadlineMonth, deadlineDay, deadlineYear]);
+
+  async function handleCreate() {
     if (!canCreate) return;
+    setServerError('');
+    setIsSubmitting(true);
+    try {
+      const cleanTasks = tasks.map((t) => t.trim()).filter(Boolean);
 
-    const cleanTasks = tasks.map((t) => t.trim()).filter(Boolean);
+      const payload: Record<string, unknown> = {
+        name: name.trim(),
+        description: brief.trim() || undefined,
+        priority: type === 'work' ? 2 : 1,
+        color: pickColor(type),
+        icon: type,
+        details: {
+          tasks: cleanTasks,
+          timeline,
+          why,
+          people,
+        },
+      };
 
-    const project: StoredProject = {
-      id: Date.now() + Math.floor(Math.random() * 1000),
-      name: name.trim(),
-      type,
-      color: pickColor(type),
-      active: true,
-      progress: 0,
-      createdAt: Date.now(),
-      brief: brief.trim() || undefined,
-      tasks: cleanTasks.length ? cleanTasks : undefined,
-    };
+      if (deadlineIso) {
+        payload.target_end_date = deadlineIso;
+        (payload.details as Record<string, unknown>).deadline = deadlineIso;
+      }
 
-    addProject(project);
-    onCreated?.(project);
+      const response = await apiFetch<ApiSuccessResponse<{ project: ProjectApiRecord }>>('/api/projects', {
+        method: 'POST',
+        body: payload,
+      });
+
+      const projectId = response.data.project.id;
+
+      if (files.length) {
+        const uploadData = new FormData();
+        files.forEach((file) => {
+          uploadData.append('files', file, file.name);
+        });
+
+        try {
+          await apiFetch(`/api/projects/${projectId}/files`, {
+            method: 'POST',
+            body: uploadData,
+          });
+        } catch (uploadError) {
+          console.error('Failed to upload project files', uploadError);
+          setServerError('Project created, but some files could not be uploaded.');
+        }
+      }
+
+      onCreated?.(projectId);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setServerError(err.message);
+      } else {
+        setServerError('Failed to create project. Please try again.');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   }
-
   return (
     <div className={styles.page}>
       {/* Hero */}
@@ -81,6 +128,8 @@ export default function CreateProject({ onCreated }: Props) {
           Let&apos;s build <span className={styles.gradient}>something great.</span>
         </h1>
       </div>
+
+      {serverError && <div className={styles.errorBanner}>{serverError}</div>}
 
       {/* Section 1: The Basics */}
       <div className={styles.sectionHeader}>
@@ -108,6 +157,7 @@ export default function CreateProject({ onCreated }: Props) {
             type="button"
             className={`${styles.typeBtn} ${type === 'work' ? styles.selected : ''}`}
             onClick={() => setType('work')}
+            disabled={isSubmitting}
           >
             Work
           </button>
@@ -115,6 +165,7 @@ export default function CreateProject({ onCreated }: Props) {
             type="button"
             className={`${styles.typeBtn} ${type === 'personal' ? styles.selected : ''}`}
             onClick={() => setType('personal')}
+            disabled={isSubmitting}
           >
             Personal
           </button>
@@ -167,14 +218,15 @@ export default function CreateProject({ onCreated }: Props) {
         <div className={styles.detailRow}>
           <span className={styles.label}>Timeline</span>
           <div className={styles.timelineOptions}>
-            {(['Today', 'Week', 'Month', 'Long-term'] as const).map((t) => (
+            {(['Today', 'Week', 'Month', 'Long-term'] as const).map((tVal) => (
               <button
-                key={t}
+                key={tVal}
                 type="button"
-                className={`${styles.timelineBtn} ${timeline === t ? styles.selectedDark : ''}`}
-                onClick={() => setTimeline(t)}
+                className={`${styles.timelineBtn} ${timeline === tVal ? styles.selectedDark : ''}`}
+                onClick={() => setTimeline(tVal)}
+                disabled={isSubmitting}
               >
-                {t}
+                {tVal}
               </button>
             ))}
           </div>
@@ -185,61 +237,53 @@ export default function CreateProject({ onCreated }: Props) {
                 className={styles.deadlineSelect}
                 value={deadlineMonth}
                 onChange={(e) => setDeadlineMonth(e.target.value)}
+                disabled={isSubmitting}
               >
                 <option value="">Month</option>
                 {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => (
-                  <option key={m} value={String(i + 1).padStart(2, '0')}>{m}</option>
+                  <option key={m} value={String(i + 1).padStart(2, '0')}>
+                    {m}
+                  </option>
                 ))}
               </select>
               <select
                 className={styles.deadlineSelect}
                 value={deadlineDay}
                 onChange={(e) => setDeadlineDay(e.target.value)}
+                disabled={isSubmitting}
               >
                 <option value="">Day</option>
                 {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
-                  <option key={d} value={String(d).padStart(2, '0')}>{d}</option>
+                  <option key={d} value={String(d).padStart(2, '0')}>
+                    {d}
+                  </option>
                 ))}
               </select>
-              <select
+              <input
                 className={styles.deadlineSelect}
                 value={deadlineYear}
                 onChange={(e) => setDeadlineYear(e.target.value)}
-              >
-                <option value="">Year</option>
-                {Array.from({ length: 11 }, (_, i) => 2026 + i).map((y) => (
-                  <option key={y} value={String(y)}>{y}</option>
-                ))}
-              </select>
-              {(deadlineMonth || deadlineDay || deadlineYear) && (
-                <button
-                  type="button"
-                  className={styles.deadlineClear}
-                  onClick={() => {
-                    setDeadlineMonth('');
-                    setDeadlineDay('');
-                    setDeadlineYear('');
-                  }}
-                  aria-label="Clear deadline"
-                >
-                  ✕
-                </button>
-              )}
+                placeholder="Year"
+                maxLength={4}
+                disabled={isSubmitting}
+              />
             </div>
           </div>
         </div>
 
         <div className={styles.detailRow}>
-          <span className={styles.label}>Why it matters</span>
-          <div className={styles.pillsRow}>
-            {['Deadline', 'Money', 'Health', 'Growth', 'Relationships'].map((p) => (
+          <span className={styles.label}>Why are you doing this?</span>
+          <div className={styles.whyGrid}>
+            {['Make money', 'Creative output', 'Health', 'Joy', 'Family', 'Growth'].map((label) => (
               <button
-                key={p}
+                key={label}
                 type="button"
-                className={`${styles.pill} ${why.includes(p) ? styles.selectedDark : ''}`}
-                onClick={() => toggleWhy(p)}
+                className={`${styles.whyBtn} ${why.includes(label) ? styles.whySelected : ''}`}
+                onClick={() => toggleWhy(label)}
+                disabled={isSubmitting}
               >
-                {p}
+                {label}
+                {why.includes(label) && <span className={styles.check}>✓</span>}
               </button>
             ))}
           </div>
@@ -247,63 +291,41 @@ export default function CreateProject({ onCreated }: Props) {
 
         <div className={styles.detailRow}>
           <span className={styles.label}>Who&apos;s involved?</span>
-          <div className={styles.pillsRow}>
-            <button
-              type="button"
-              className={`${styles.pill} ${people === 'me' ? styles.selectedDark : ''}`}
-              onClick={() => setPeople('me')}
-            >
-              Just me
-            </button>
-            <button
-              type="button"
-              className={`${styles.pill} ${people === 'others' ? styles.selectedDark : ''}`}
-              onClick={() => setPeople('others')}
-            >
-              Others too
-            </button>
+          <div className={styles.peopleToggle}>
+            {(['me', 'others'] as const).map((p) => (
+              <button
+                key={p}
+                type="button"
+                className={`${styles.personBtn} ${people === p ? styles.selected : ''}`}
+                onClick={() => setPeople(p)}
+                disabled={isSubmitting}
+              >
+                {p === 'me' ? 'Just me' : 'Others too'}
+              </button>
+            ))}
           </div>
         </div>
 
         <div className={styles.detailRow}>
-          <span className={styles.label}>Links &amp; Docs (optional)</span>
-          <label
-            className={styles.dropZone}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              addFiles(e.dataTransfer.files);
-            }}
-          >
-            <input
-              type="file"
-              multiple
-              className={styles.fileInput}
-              onChange={(e) => addFiles(e.target.files)}
-            />
-            <div className={styles.dropIcon}>⤒</div>
-            <p>
-              Drop files here or <span>browse</span>
-            </p>
+          <span className={styles.label}>Files (optional)</span>
+          <label className={styles.uploadBtn}>
+            Upload
+            <input type="file" multiple onChange={(e) => addFiles(e.target.files)} disabled={isSubmitting} />
           </label>
-          {files.length > 0 && (
-            <div className={styles.attachedFiles}>
-              {files.map((f) => (
-                <div key={f} className={styles.filePill}>
-                  {f}
-                  <button type="button" onClick={() => removeFile(f)} aria-label="Remove">
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className={styles.fileList}>
+            {files.map((file, idx) => (
+              <button key={`${file.name}-${idx}`} className={styles.fileChip} type="button" onClick={() => removeFile(idx)}>
+                <span>{file.name}</span>
+                <span className={styles.remove}>&times;</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div className={styles.footer}>
-        <button type="button" className={styles.btnPrimary} onClick={createProject}>
-          Create Project
+      <div className={styles.sectionFooter}>
+        <button type="button" className={styles.submitBtn} disabled={!canCreate} onClick={handleCreate}>
+          {isSubmitting ? 'Creating…' : 'Create Project'}
         </button>
       </div>
     </div>
