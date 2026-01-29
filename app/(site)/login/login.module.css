@@ -2,7 +2,7 @@
 .desktopContainer {
   display: block;
   padding: clamp(12px, 2.2vw, 16px) clamp(10px, 2vw, 14px);
-  background: #d5cfc7;
+  background: #ffffff;
 
   /* ✅ allow page to grow + scroll */
   min-height: 100dvh;
@@ -77,7 +77,7 @@
 
 .navBtn {
   padding: 14px 28px;
-  background: #d5cfc7;
+  background: #ffffff;
   color: #000000;
   border: none;
   border-radius: 100px;
@@ -108,7 +108,7 @@
   height: 126px;
   width: 210px;
   padding-left: 36px;
-  background: #d5cfc7;
+  background: #ffffff;
   border-bottom-right-radius: 40px;
   display: flex;
   align-items: center;
@@ -126,11 +126,11 @@
 
 .cornerRight {
   position: absolute;
-  top: 0;
+  top: 0px;
   left: 200px;
   width: 40px;
   height: 40px;
-  background: #d5cfc7;
+  background: #ffffff;
   z-index: 41;
   overflow: hidden;
 }
@@ -150,7 +150,7 @@
   left: 0;
   width: 40px;
   height: 40px;
-  background: #d5cfc7;
+  background: #ffffff;
   z-index: 41;
   overflow: hidden;
 }
@@ -276,7 +276,7 @@
   font-size: 15px;
   border: 2px solid rgba(0, 0, 0, 0.08);
   border-radius: 100px;
-  background: #d5cfc7;
+  background: #ffffff;
   color: #000000;
   transition: border-color 0.2s;
   font-family: inherit;
@@ -429,7 +429,7 @@
 
 .googleBtn:hover {
   border-color: rgba(0, 0, 0, 0.16);
-  background: #d5cfc7;
+  background: #ffffff;
   transform: translateY(-1px);
 }
 
@@ -594,7 +594,7 @@
   font-size: 15px;
   border: 2px solid rgba(0, 0, 0, 0.08);
   border-radius: 100px;
-  background: #d5cfc7;
+  background: #ffffff;
   color: #000000;
   transition: border-color 0.2s;
   font-family: inherit;
@@ -724,7 +724,7 @@
 }
 
 .mobileGoogle:hover {
-  background: #d5cfc7;
+  background: #ffffff;
   border-color: rgba(0, 0, 0, 0.16);
   transform: translateY(-1px);
 }

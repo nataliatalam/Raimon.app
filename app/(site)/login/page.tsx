@@ -5,12 +5,40 @@ import type { FormEvent } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { createClient } from '@supabase/supabase-js';
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import styles from './login.module.css';
-import { apiFetch, ApiError } from '../../../lib/api-client';
-import type { ApiSuccessResponse, AuthSuccessPayload } from '../../../types/api';
 import { useSession } from '../../components/providers/SessionProvider';
+import { apiFetch, ApiError } from '../../../lib/api-client';
+import type { ApiSuccessResponse } from '../../../types/api';
 
 type Step = 'auth' | 'verify';
+
+type OnboardingStatusResponse = ApiSuccessResponse<{
+  onboarding_completed?: boolean;
+  onboarding_step?: number;
+}>;
+
+function hasCompletedOnboarding(user: any) {
+  return !!user?.onboarding_completed || !!user?.user_metadata?.onboarding_completed;
+}
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_ANON) {
+  throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
+}
+
+// ✅ Supabase client (browser)
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce',
+  },
+});
 
 // Password requirements checker
 const PasswordRequirements = ({ password }: { password: string }) => {
@@ -22,25 +50,30 @@ const PasswordRequirements = ({ password }: { password: string }) => {
   ];
 
   return (
-    <div style={{
-      marginTop: '8px',
-      padding: '12px',
-      background: 'rgba(255,255,255,0.03)',
-      borderRadius: '8px',
-      fontSize: '13px',
-    }}>
+    <div
+      style={{
+        marginTop: '8px',
+        padding: '12px',
+        background: 'rgba(255,255,255,0.03)',
+        borderRadius: '8px',
+        fontSize: '13px',
+      }}
+    >
       <div style={{ color: 'rgba(255,255,255,0.5)', marginBottom: '8px', fontWeight: 500 }}>
         Password requirements:
       </div>
       {requirements.map((req, i) => (
-        <div key={i} style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          marginBottom: '4px',
-          color: req.met ? '#4ade80' : 'rgba(255,255,255,0.4)',
-          transition: 'color 0.2s',
-        }}>
+        <div
+          key={i}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            marginBottom: '4px',
+            color: req.met ? '#4ade80' : 'rgba(255,255,255,0.4)',
+            transition: 'color 0.2s',
+          }}
+        >
           <span style={{ fontSize: '14px' }}>{req.met ? '✓' : '○'}</span>
           <span>{req.label}</span>
         </div>
@@ -49,9 +82,13 @@ const PasswordRequirements = ({ password }: { password: string }) => {
   );
 };
 
+function normalizeAuthErrorMessage(msg?: string) {
+  return (msg ?? '').toLowerCase();
+}
+
 export default function LoginPage() {
   const router = useRouter();
-  const { session, status, setSession } = useSession();
+  const { session, status, setSession, clear } = useSession();
 
   const [step, setStep] = useState<Step>('auth');
   const [isLoginMode, setIsLoginMode] = useState(true);
@@ -74,15 +111,65 @@ export default function LoginPage() {
 
   const isVerify = step === 'verify';
 
+  // ✅ Keep SessionProvider in sync with Supabase (helps after Google redirect)
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!mounted) return;
+
+      const s = data.session;
+      if (s) {
+        setSession({
+          accessToken: s.access_token,
+          refreshToken: s.refresh_token ?? '',
+          user: (s.user as any) ?? (null as any),
+        });
+      }
+    })();
+
+    const { data: sub } = supabase.auth.onAuthStateChange(
+      (_event: AuthChangeEvent, s: Session | null) => {
+        if (!mounted) return;
+
+        if (s) {
+          setSession({
+            accessToken: s.access_token,
+            refreshToken: s.refresh_token ?? '',
+            user: (s.user as any) ?? (null as any),
+          });
+        } else {
+          // signed out
+          clear();
+        }
+      }
+    );
+
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
+  }, [setSession, clear]);
+
+  // ✅ redirect if already authed
   useEffect(() => {
     if (status !== 'ready') return;
     if (!session.accessToken) return;
-    if (session.user?.onboarding_completed) {
-      router.replace('/dashboard');
-    } else {
-      router.replace('/onboarding-questions');
-    }
-  }, [status, session.accessToken, session.user?.onboarding_completed, router]);
+
+    let canceled = false;
+
+    (async () => {
+      const fallback = hasCompletedOnboarding(session.user);
+      const statusResponse = await fetchOnboardingStatus(fallback);
+      if (canceled || !statusResponse) return;
+      router.replace(statusResponse.completed ? '/dashboard' : '/onboarding-questions');
+    })();
+
+    return () => {
+      canceled = true;
+    };
+  }, [status, session.accessToken, session.user, router]);
 
   const toggleMode = () => {
     setError('');
@@ -94,10 +181,6 @@ export default function LoginPage() {
 
   const togglePassword = () => setShowPassword((v) => !v);
 
-  function fakeDelay(ms = 650) {
-    return new Promise<void>((res) => setTimeout(res, ms));
-  }
-
   function goDashboard() {
     router.push('/dashboard');
   }
@@ -106,11 +189,28 @@ export default function LoginPage() {
     router.push('/onboarding-questions');
   }
 
+  async function fetchOnboardingStatus(fallbackCompleted: boolean) {
+    try {
+      const response = await apiFetch<OnboardingStatusResponse>('/api/users/onboarding-status');
+      return {
+        completed: !!response.data?.onboarding_completed,
+        step: response.data?.onboarding_step ?? 0,
+      };
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        clear();
+        return null;
+      }
+      console.warn('Failed to fetch onboarding status', err);
+      return { completed: fallbackCompleted, step: fallbackCompleted ? 6 : 0 };
+    }
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
 
-    // Basic demo validation (keep it simple)
+    // Basic validation
     if (!email.trim() || !password.trim()) {
       setError('Please fill in all fields');
       return;
@@ -125,20 +225,13 @@ export default function LoginPage() {
         setError('Passwords do not match');
         return;
       }
-      // Validate password requirements (must match backend: models/auth.py)
+
+      // Validate password requirements
       const passwordErrors: string[] = [];
-      if (password.length < 8) {
-        passwordErrors.push('At least 8 characters');
-      }
-      if (!/[A-Z]/.test(password)) {
-        passwordErrors.push('One uppercase letter');
-      }
-      if (!/[a-z]/.test(password)) {
-        passwordErrors.push('One lowercase letter');
-      }
-      if (!/\d/.test(password)) {
-        passwordErrors.push('One number');
-      }
+      if (password.length < 8) passwordErrors.push('At least 8 characters');
+      if (!/[A-Z]/.test(password)) passwordErrors.push('One uppercase letter');
+      if (!/[a-z]/.test(password)) passwordErrors.push('One lowercase letter');
+      if (!/\d/.test(password)) passwordErrors.push('One number');
       if (passwordErrors.length > 0) {
         setError('Password needs: ' + passwordErrors.join(', '));
         return;
@@ -146,35 +239,84 @@ export default function LoginPage() {
     }
 
     setIsLoading(true);
+
     try {
-      const endpoint = isLoginMode ? '/api/auth/login' : '/api/auth/signup';
-      const payload = isLoginMode
-        ? { email: email.trim(), password: password.trim() }
-        : { email: email.trim(), password: password.trim(), name: name.trim() };
+      if (isLoginMode) {
+        // ✅ Email + password login
+        const { data, error: signInErr } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password: password.trim(),
+        });
 
-      const response = await apiFetch<ApiSuccessResponse<AuthSuccessPayload>>(endpoint, {
-        method: 'POST',
-        body: payload,
-        skipAuth: true,
-      });
+        if (signInErr) {
+          const m = normalizeAuthErrorMessage(signInErr.message);
 
-      setSession({
-        accessToken: response.data.token,
-        refreshToken: response.data.refresh_token,
-        user: response.data.user,
-      });
+          // Si el usuario existe pero no confirmó email (signup incompleto),
+          // lo mandamos al verify step (esto sigue siendo parte de "new user verification").
+          if (m.includes('email not confirmed') || m.includes('not confirmed')) {
+            setPendingEmail(email.trim());
+            setStep('verify');
+            setIsLoginMode(false);
+            setError('Your email is not confirmed yet. Enter the 6-digit code (or resend it).');
+            return;
+          }
 
-      if (response.data.user.onboarding_completed) {
-        goDashboard();
+          throw signInErr;
+        }
+
+        if (!data.session) {
+          setError('Login failed: no session returned.');
+          return;
+        }
+
+        setSession({
+          accessToken: data.session.access_token,
+          refreshToken: data.session.refresh_token ?? '',
+          user: (data.user as any) ?? (null as any),
+        });
+
+        const userAny = data.user as any;
+        const statusResponse = await fetchOnboardingStatus(hasCompletedOnboarding(userAny));
+        if (!statusResponse) return;
+        if (statusResponse.completed) goDashboard();
+        else goOnboarding();
       } else {
-        goOnboarding();
+        // ✅ SIGNUP (SOLO NUEVOS USUARIOS):
+        // - signUp crea usuario con password
+        // - Supabase manda OTP 6 dígitos (si tienes Email OTP habilitado + template con {{ .Token }})
+        const { data, error: signUpErr } = await supabase.auth.signUp({
+          email: email.trim(),
+          password: password.trim(),
+          options: {
+            data: { full_name: name.trim() },
+          },
+        });
+
+        if (signUpErr) {
+          const m = normalizeAuthErrorMessage(signUpErr.message);
+          // Si ya existe, NO aplicamos OTP “signup” (porque no es “nuevo”)
+          if (
+            m.includes('already registered') ||
+            m.includes('user already') ||
+            m.includes('already exists')
+          ) {
+            setError('This email already has an account. Please log in instead.');
+            return;
+          }
+          throw signUpErr;
+        }
+
+        // Con confirmación ON, normalmente no hay session todavía (normal).
+        // Pasamos a verify para que ponga el código.
+        setPendingEmail(email.trim());
+        setStep('verify');
+
+        // En algunos setups Supabase podría devolver session si confirm email OFF,
+        // pero tu flow quiere OTP → onboarding, así que siempre mostramos verify aquí.
+        // (Si quieres saltar verify cuando ya hay session, dímelo.)
       }
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError('Something went wrong. Please try again.');
-      }
+    } catch (err: any) {
+      setError(err?.message ?? 'Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -188,16 +330,63 @@ export default function LoginPage() {
       setError('Missing email. Go back and sign up again.');
       return;
     }
-    if (!verificationCode.trim()) {
-      setError('Enter any code for demo (try 123456).');
+    const code = verificationCode.trim();
+    if (!code || code.length < 6) {
+      setError('Enter the 6-digit code from your email.');
       return;
     }
 
     setIsLoading(true);
     try {
-      await fakeDelay();
-      // ✅ Demo verify: always succeeds
+      // ✅ Verify OTP (signup)
+      const { data, error: verifyErr } = await supabase.auth.verifyOtp({
+        email: pendingEmail,
+        token: code,
+        type: 'signup',
+      });
+      if (verifyErr) throw verifyErr;
+
+      // Asegura sesión (a veces verifyOtp no trae session según config)
+      let sessionNow = data.session ?? (await supabase.auth.getSession()).data.session;
+
+      // Si todavía no hay sesión, intenta login normal (ya está confirmado)
+      if (!sessionNow) {
+        const { data: loginData, error: loginErr } = await supabase.auth.signInWithPassword({
+          email: pendingEmail,
+          password: password.trim(),
+        });
+        if (loginErr) throw loginErr;
+        sessionNow = loginData.session ?? null;
+      }
+
+      if (!sessionNow) {
+        throw new Error('Verification succeeded but no session was created.');
+      }
+
+      // Refresca el user por si metadata cambió
+      const { data: userData } = await supabase.auth.getUser();
+
+      // (Opcional) asegúrate de guardar full_name si lo capturaste en signup
+      // No tocamos password aquí (ya se guardó en signUp)
+      if (name.trim()) {
+        const currentName = userData.user?.user_metadata?.full_name;
+        if (!currentName) {
+          await supabase.auth.updateUser({ data: { full_name: name.trim() } });
+        }
+      }
+
+      // Re-lee user final tras update opcional
+      const { data: userDataFinal } = await supabase.auth.getUser();
+
+      setSession({
+        accessToken: sessionNow.access_token,
+        refreshToken: sessionNow.refresh_token ?? '',
+        user: (userDataFinal.user as any) ?? (sessionNow.user as any) ?? (null as any),
+      });
+
       goOnboarding();
+    } catch (err: any) {
+      setError(err?.message ?? 'Invalid code. Try again.');
     } finally {
       setIsLoading(false);
     }
@@ -209,8 +398,29 @@ export default function LoginPage() {
 
     setIsLoading(true);
     try {
-      await fakeDelay(450);
-      setError('Demo mode: code “resent”. Use any code to continue.');
+      // ✅ Resend signup OTP
+      // supabase-js v2: resend({ type:'signup', email })
+      const anyAuth: any = supabase.auth as any;
+
+      if (typeof anyAuth.resend === 'function') {
+        const { error: resendErr } = await anyAuth.resend({
+          type: 'signup',
+          email: pendingEmail,
+        });
+        if (resendErr) throw resendErr;
+      } else {
+        // Fallback (viejo): signInWithOtp puede reenviar, pero puede intentar “login magic”.
+        // En tu caso funciona como resend si el provider está en OTP.
+        const { error: resendErr } = await supabase.auth.signInWithOtp({
+          email: pendingEmail,
+          options: { shouldCreateUser: false },
+        });
+        if (resendErr) throw resendErr;
+      }
+
+      setError('Code resent. Check your email.');
+    } catch (err: any) {
+      setError(err?.message ?? 'Could not resend code.');
     } finally {
       setIsLoading(false);
     }
@@ -219,9 +429,28 @@ export default function LoginPage() {
   async function handleGoogleSignIn() {
     setError('');
     setIsLoading(true);
+
     try {
-      setError('Google sign-in is not available yet.');
-    } finally {
+      const { data, error: gErr } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            prompt: 'consent',
+            access_type: 'offline',
+          },
+        },
+      });
+
+      if (gErr) throw gErr;
+
+      // ✅ fuerza navegación si Supabase devuelve URL
+      if (data?.url) {
+        window.location.assign(data.url);
+      }
+      // si no hay url, supabase-js puede redirigir solo
+    } catch (err: any) {
+      setError(err?.message ?? 'Google sign-in failed.');
       setIsLoading(false);
     }
   }
@@ -325,10 +554,10 @@ export default function LoginPage() {
                           type="text"
                           inputMode="numeric"
                           className={styles.formInput}
-                          placeholder="Enter any code (demo)"
+                          placeholder="Enter 6-digit code"
                           value={verificationCode}
                           onChange={(e) =>
-                            setVerificationCode(e.target.value.replace(/[^\d]/g, '').slice(0, 10))
+                            setVerificationCode(e.target.value.replace(/[^\d]/g, '').slice(0, 6))
                           }
                         />
                         <div style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>
@@ -364,16 +593,6 @@ export default function LoginPage() {
 
                       <button type="submit" className={styles.submitBtn} disabled={isLoading}>
                         {isLoading ? 'Verifying...' : 'Verify code'}
-                      </button>
-
-                      <button
-                        type="button"
-                        className={styles.googleBtn}
-                        onClick={goOnboarding}
-                        disabled={isLoading}
-                        style={{ marginTop: 8 }}
-                      >
-                        Skip for demo
                       </button>
 
                       <div className={styles.bottomSignup}>
@@ -472,11 +691,10 @@ export default function LoginPage() {
                             <span className={styles.rememberText}>Remember me</span>
                           </label>
 
-                          {/* ✅ no route for demo */}
                           <button
                             type="button"
                             className={styles.forgotLink}
-                            onClick={() => setError('Demo mode: password reset is not enabled.')}
+                            onClick={() => setError('Password reset not wired yet.')}
                           >
                             Forgot password?
                           </button>
@@ -487,10 +705,10 @@ export default function LoginPage() {
                         {isLoading
                           ? isLoginMode
                             ? 'Logging in...'
-                            : 'Creating account...'
+                            : 'Sending code...'
                           : isLoginMode
                           ? 'Log in'
-                          : 'Create account'}
+                          : 'Send 6-digit code'}
                       </button>
 
                       <div className={styles.divider}>
@@ -584,10 +802,10 @@ export default function LoginPage() {
                     type="text"
                     inputMode="numeric"
                     className={styles.mobileInput}
-                    placeholder="Enter any code (demo)"
+                    placeholder="Enter 6-digit code"
                     value={verificationCode}
                     onChange={(e) =>
-                      setVerificationCode(e.target.value.replace(/[^\d]/g, '').slice(0, 10))
+                      setVerificationCode(e.target.value.replace(/[^\d]/g, '').slice(0, 6))
                     }
                   />
                 </div>
@@ -609,10 +827,6 @@ export default function LoginPage() {
 
                 <button type="submit" className={styles.mobileSubmit} disabled={isLoading}>
                   {isLoading ? 'Verifying...' : 'Verify code'}
-                </button>
-
-                <button type="button" className={styles.mobileGoogle} onClick={goOnboarding} disabled={isLoading}>
-                  Skip for demo
                 </button>
               </>
             ) : (
@@ -675,7 +889,7 @@ export default function LoginPage() {
                       <button
                         type="button"
                         className={styles.mobileForgotPill}
-                        onClick={() => setError('Demo mode: password reset is not enabled.')}
+                        onClick={() => setError('Password reset not wired yet.')}
                       >
                         I forgot
                       </button>
@@ -704,7 +918,13 @@ export default function LoginPage() {
                 )}
 
                 <button type="submit" className={styles.mobileSubmit} disabled={isLoading}>
-                  {isLoading ? (isLoginMode ? 'Logging in...' : 'Creating account...') : isLoginMode ? 'Log in' : 'Create account'}
+                  {isLoading
+                    ? isLoginMode
+                      ? 'Logging in...'
+                      : 'Sending code...'
+                    : isLoginMode
+                    ? 'Log in'
+                    : 'Send 6-digit code'}
                 </button>
 
                 <div className={styles.mobileDivider}>
