@@ -312,12 +312,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0.5;
-  transition: opacity 0.2s;
+  color: rgba(0, 0, 0, 0.5);
+  transition: color 0.2s;
 }
 
 .passwordToggle:hover {
-  opacity: 0.85;
+  color: #ff8c42;
 }
 
 .rememberRow {
@@ -615,7 +615,7 @@
 }
 
 .mobilePasswordInput {
-  padding-right: 110px;
+  padding-right: 50px;
 }
 
 .mobileForgotPill {
@@ -638,6 +638,26 @@
 
 .mobileForgotPill:hover {
   background: rgba(255, 140, 66, 0.12);
+  color: #ff8c42;
+}
+
+.mobilePasswordToggle {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(0, 0, 0, 0.5);
+  transition: color 0.2s;
+}
+
+.mobilePasswordToggle:hover {
   color: #ff8c42;
 }
 

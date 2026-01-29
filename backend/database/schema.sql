@@ -239,6 +239,49 @@ CREATE TABLE IF NOT EXISTS public.user_achievements (
     UNIQUE(user_id, achievement_id)
 );
 
+-- User flower points (currency for graveyard features)
+CREATE TABLE IF NOT EXISTS public.user_flower_points (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID UNIQUE REFERENCES public.users(id) ON DELETE CASCADE,
+    balance INTEGER DEFAULT 30,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Flower point transactions (history)
+CREATE TABLE IF NOT EXISTS public.flower_transactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+    amount INTEGER NOT NULL,
+    action TEXT NOT NULL,
+    project_id UUID REFERENCES public.projects(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Graveyard metadata (for archived projects)
+CREATE TABLE IF NOT EXISTS public.graveyard_meta (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+    project_id UUID REFERENCES public.projects(id) ON DELETE CASCADE,
+    expiry_date TIMESTAMPTZ,
+    epitaph TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, project_id)
+);
+
+-- Graveyard flowers (flowers placed on archived projects)
+CREATE TABLE IF NOT EXISTS public.graveyard_flowers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    graveyard_meta_id UUID REFERENCES public.graveyard_meta(id) ON DELETE CASCADE,
+    flower_id TEXT NOT NULL,
+    flower_name TEXT NOT NULL,
+    flower_emoji TEXT,
+    cost INTEGER DEFAULT 0,
+    days_added INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ============================================
 -- NOTIFICATIONS & REMINDERS
 -- ============================================
@@ -346,6 +389,10 @@ ALTER TABLE public.project_insights ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.streaks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.achievements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_achievements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_flower_points ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.flower_transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.graveyard_meta ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.graveyard_flowers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reminders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.integrations ENABLE ROW LEVEL SECURITY;
@@ -414,6 +461,20 @@ CREATE POLICY "Anyone can view achievements" ON public.achievements
 
 CREATE POLICY "Users can manage own earned achievements" ON public.user_achievements
     FOR ALL USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can manage own flower points" ON public.user_flower_points
+    FOR ALL USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can manage own flower transactions" ON public.flower_transactions
+    FOR ALL USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can manage own graveyard meta" ON public.graveyard_meta
+    FOR ALL USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can manage own graveyard flowers" ON public.graveyard_flowers
+    FOR ALL USING (
+        EXISTS (SELECT 1 FROM public.graveyard_meta WHERE id = graveyard_meta_id AND user_id = auth.uid())
+    );
 
 CREATE POLICY "Users can manage own notifications" ON public.notifications
     FOR ALL USING (auth.uid() = user_id);

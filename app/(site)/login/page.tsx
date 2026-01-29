@@ -12,6 +12,43 @@ import { useSession } from '../../components/providers/SessionProvider';
 
 type Step = 'auth' | 'verify';
 
+// Password requirements checker
+const PasswordRequirements = ({ password }: { password: string }) => {
+  const requirements = [
+    { label: 'At least 8 characters', met: password.length >= 8 },
+    { label: 'Contains uppercase letter', met: /[A-Z]/.test(password) },
+    { label: 'Contains lowercase letter', met: /[a-z]/.test(password) },
+    { label: 'Contains a number', met: /\d/.test(password) },
+  ];
+
+  return (
+    <div style={{
+      marginTop: '8px',
+      padding: '12px',
+      background: 'rgba(255,255,255,0.03)',
+      borderRadius: '8px',
+      fontSize: '13px',
+    }}>
+      <div style={{ color: 'rgba(255,255,255,0.5)', marginBottom: '8px', fontWeight: 500 }}>
+        Password requirements:
+      </div>
+      {requirements.map((req, i) => (
+        <div key={i} style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          marginBottom: '4px',
+          color: req.met ? '#4ade80' : 'rgba(255,255,255,0.4)',
+          transition: 'color 0.2s',
+        }}>
+          <span style={{ fontSize: '14px' }}>{req.met ? '✓' : '○'}</span>
+          <span>{req.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 export default function LoginPage() {
   const router = useRouter();
   const { session, status, setSession } = useSession();
@@ -88,8 +125,22 @@ export default function LoginPage() {
         setError('Passwords do not match');
         return;
       }
-      if (password.length < 6) {
-        setError('Password must be at least 6 characters');
+      // Validate password requirements (must match backend: models/auth.py)
+      const passwordErrors: string[] = [];
+      if (password.length < 8) {
+        passwordErrors.push('At least 8 characters');
+      }
+      if (!/[A-Z]/.test(password)) {
+        passwordErrors.push('One uppercase letter');
+      }
+      if (!/[a-z]/.test(password)) {
+        passwordErrors.push('One lowercase letter');
+      }
+      if (!/\d/.test(password)) {
+        passwordErrors.push('One number');
+      }
+      if (passwordErrors.length > 0) {
+        setError('Password needs: ' + passwordErrors.join(', '));
         return;
       }
     }
@@ -392,6 +443,7 @@ export default function LoginPage() {
                             )}
                           </button>
                         </div>
+                        {!isLoginMode && <PasswordRequirements password={password} />}
                       </div>
 
                       {!isLoginMode && (
@@ -595,12 +647,30 @@ export default function LoginPage() {
                   <div className={styles.mobilePasswordWrapper}>
                     <input
                       type={showPassword ? 'text' : 'password'}
-                      className={`${styles.mobileInput} ${isLoginMode ? styles.mobilePasswordInput : ''}`}
+                      className={`${styles.mobileInput} ${styles.mobilePasswordInput}`}
                       placeholder="••••••••"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
                     />
+                    <button
+                      type="button"
+                      className={styles.mobilePasswordToggle}
+                      onClick={togglePassword}
+                      style={isLoginMode ? { right: '100px' } : undefined}
+                    >
+                      {showPassword ? (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                          <line x1="1" y1="1" x2="23" y2="23" />
+                        </svg>
+                      ) : (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                      )}
+                    </button>
                     {isLoginMode && (
                       <button
                         type="button"
@@ -611,6 +681,7 @@ export default function LoginPage() {
                       </button>
                     )}
                   </div>
+                  {!isLoginMode && <PasswordRequirements password={password} />}
                 </div>
 
                 {!isLoginMode && (
