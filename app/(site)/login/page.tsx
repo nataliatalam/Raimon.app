@@ -5,11 +5,10 @@ import type { FormEvent } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
-import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import styles from './login.module.css';
 import { useSession } from '../../components/providers/SessionProvider';
 import { apiFetch, ApiError } from '../../../lib/api-client';
+import { createClient } from '../../../lib/supabase/client';
 import type { ApiSuccessResponse } from '../../../types/api';
 
 type Step = 'auth' | 'verify';
@@ -22,23 +21,6 @@ type OnboardingStatusResponse = ApiSuccessResponse<{
 function hasCompletedOnboarding(user: any) {
   return !!user?.onboarding_completed || !!user?.user_metadata?.onboarding_completed;
 }
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!SUPABASE_URL || !SUPABASE_ANON) {
-  throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
-}
-
-// ✅ Supabase client (browser)
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    flowType: 'pkce',
-  },
-});
 
 // Password requirements checker
 const PasswordRequirements = ({ password }: { password: string }) => {
@@ -89,6 +71,7 @@ function normalizeAuthErrorMessage(msg?: string) {
 export default function LoginPage() {
   const router = useRouter();
   const { session, status, setSession, clear } = useSession();
+  const supabase = createClient();
 
   const [step, setStep] = useState<Step>('auth');
   const [isLoginMode, setIsLoginMode] = useState(true);
@@ -110,47 +93,6 @@ export default function LoginPage() {
   const [verificationCode, setVerificationCode] = useState('');
 
   const isVerify = step === 'verify';
-
-  // ✅ Keep SessionProvider in sync with Supabase (helps after Google redirect)
-  useEffect(() => {
-    let mounted = true;
-
-    (async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!mounted) return;
-
-      const s = data.session;
-      if (s) {
-        setSession({
-          accessToken: s.access_token,
-          refreshToken: s.refresh_token ?? '',
-          user: (s.user as any) ?? (null as any),
-        });
-      }
-    })();
-
-    const { data: sub } = supabase.auth.onAuthStateChange(
-      (_event: AuthChangeEvent, s: Session | null) => {
-        if (!mounted) return;
-
-        if (s) {
-          setSession({
-            accessToken: s.access_token,
-            refreshToken: s.refresh_token ?? '',
-            user: (s.user as any) ?? (null as any),
-          });
-        } else {
-          // signed out
-          clear();
-        }
-      }
-    );
-
-    return () => {
-      mounted = false;
-      sub.subscription.unsubscribe();
-    };
-  }, [setSession, clear]);
 
   // ✅ redirect if already authed
   useEffect(() => {
@@ -182,11 +124,11 @@ export default function LoginPage() {
   const togglePassword = () => setShowPassword((v) => !v);
 
   function goDashboard() {
-    router.push('/dashboard');
+    window.location.href = '/dashboard';
   }
 
   function goOnboarding() {
-    router.push('/onboarding-questions');
+    window.location.href = '/onboarding-questions';
   }
 
   async function fetchOnboardingStatus(fallbackCompleted: boolean) {
@@ -242,59 +184,62 @@ export default function LoginPage() {
 
     try {
       if (isLoginMode) {
-        // ✅ Email + password login
-        const { data, error: signInErr } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password: password.trim(),
+        // ✅ Email + password login via backend API (JWT)
+        const result = await apiFetch<ApiSuccessResponse<{
+          user: any;
+          token: string;
+          refresh_token: string;
+        }>>('/api/auth/login', {
+          method: 'POST',
+          body: { email: email.trim(), password: password.trim() },
+          skipAuth: true,
         });
 
-        if (signInErr) {
-          const m = normalizeAuthErrorMessage(signInErr.message);
-
-          // Si el usuario existe pero no confirmó email (signup incompleto),
-          // lo mandamos al verify step (esto sigue siendo parte de "new user verification").
-          if (m.includes('email not confirmed') || m.includes('not confirmed')) {
-            setPendingEmail(email.trim());
-            setStep('verify');
-            setIsLoginMode(false);
-            setError('Your email is not confirmed yet. Enter the 6-digit code (or resend it).');
-            return;
-          }
-
-          throw signInErr;
-        }
-
-        if (!data.session) {
-          setError('Login failed: no session returned.');
+        if (!result.success || !result.data?.token) {
+          setError('Login failed: no token returned.');
           return;
         }
 
         setSession({
-          accessToken: data.session.access_token,
-          refreshToken: data.session.refresh_token ?? '',
-          user: (data.user as any) ?? (null as any),
+          accessToken: result.data.token,
+          refreshToken: result.data.refresh_token ?? '',
+          user: result.data.user ?? null,
         });
 
-        const userAny = data.user as any;
-        const statusResponse = await fetchOnboardingStatus(hasCompletedOnboarding(userAny));
-        if (!statusResponse) return;
-        if (statusResponse.completed) goDashboard();
+        const onboardingCompleted = result.data.user?.onboarding_completed;
+        if (onboardingCompleted) goDashboard();
         else goOnboarding();
       } else {
-        // ✅ SIGNUP (SOLO NUEVOS USUARIOS):
-        // - signUp crea usuario con password
-        // - Supabase manda OTP 6 dígitos (si tienes Email OTP habilitado + template con {{ .Token }})
-        const { data, error: signUpErr } = await supabase.auth.signUp({
-          email: email.trim(),
-          password: password.trim(),
-          options: {
-            data: { full_name: name.trim() },
-          },
-        });
+        // ✅ SIGNUP via backend API (JWT)
+        try {
+          const result = await apiFetch<ApiSuccessResponse<{
+            user: any;
+            token: string;
+            refresh_token: string;
+          }>>('/api/auth/signup', {
+            method: 'POST',
+            body: {
+              email: email.trim(),
+              password: password.trim(),
+              name: name.trim(),
+            },
+            skipAuth: true,
+          });
 
-        if (signUpErr) {
-          const m = normalizeAuthErrorMessage(signUpErr.message);
-          // Si ya existe, NO aplicamos OTP “signup” (porque no es “nuevo”)
+          if (!result.success || !result.data?.token) {
+            setError('Signup failed: no token returned.');
+            return;
+          }
+
+          setSession({
+            accessToken: result.data.token,
+            refreshToken: result.data.refresh_token ?? '',
+            user: result.data.user ?? null,
+          });
+
+          goOnboarding();
+        } catch (err: any) {
+          const m = normalizeAuthErrorMessage(err?.message || '');
           if (
             m.includes('already registered') ||
             m.includes('user already') ||
@@ -303,17 +248,8 @@ export default function LoginPage() {
             setError('This email already has an account. Please log in instead.');
             return;
           }
-          throw signUpErr;
+          throw err;
         }
-
-        // Con confirmación ON, normalmente no hay session todavía (normal).
-        // Pasamos a verify para que ponga el código.
-        setPendingEmail(email.trim());
-        setStep('verify');
-
-        // En algunos setups Supabase podría devolver session si confirm email OFF,
-        // pero tu flow quiere OTP → onboarding, así que siempre mostramos verify aquí.
-        // (Si quieres saltar verify cuando ya hay session, dímelo.)
       }
     } catch (err: any) {
       setError(err?.message ?? 'Something went wrong. Please try again.');
@@ -338,50 +274,33 @@ export default function LoginPage() {
 
     setIsLoading(true);
     try {
-      // ✅ Verify OTP (signup)
-      const { data, error: verifyErr } = await supabase.auth.verifyOtp({
-        email: pendingEmail,
-        token: code,
-        type: 'signup',
+      // ✅ Verify OTP via backend API
+      await apiFetch<ApiSuccessResponse<void>>('/api/auth/verify-code', {
+        method: 'POST',
+        body: { email: pendingEmail, code },
+        skipAuth: true,
       });
-      if (verifyErr) throw verifyErr;
 
-      // Asegura sesión (a veces verifyOtp no trae session según config)
-      let sessionNow = data.session ?? (await supabase.auth.getSession()).data.session;
+      // ✅ After verification, login to get JWT tokens
+      const loginResult = await apiFetch<ApiSuccessResponse<{
+        user: any;
+        token: string;
+        refresh_token: string;
+      }>>('/api/auth/login', {
+        method: 'POST',
+        body: { email: pendingEmail, password: password.trim() },
+        skipAuth: true,
+      });
 
-      // Si todavía no hay sesión, intenta login normal (ya está confirmado)
-      if (!sessionNow) {
-        const { data: loginData, error: loginErr } = await supabase.auth.signInWithPassword({
-          email: pendingEmail,
-          password: password.trim(),
-        });
-        if (loginErr) throw loginErr;
-        sessionNow = loginData.session ?? null;
+      if (!loginResult.success || !loginResult.data?.token) {
+        setError('Verification succeeded but login failed.');
+        return;
       }
-
-      if (!sessionNow) {
-        throw new Error('Verification succeeded but no session was created.');
-      }
-
-      // Refresca el user por si metadata cambió
-      const { data: userData } = await supabase.auth.getUser();
-
-      // (Opcional) asegúrate de guardar full_name si lo capturaste en signup
-      // No tocamos password aquí (ya se guardó en signUp)
-      if (name.trim()) {
-        const currentName = userData.user?.user_metadata?.full_name;
-        if (!currentName) {
-          await supabase.auth.updateUser({ data: { full_name: name.trim() } });
-        }
-      }
-
-      // Re-lee user final tras update opcional
-      const { data: userDataFinal } = await supabase.auth.getUser();
 
       setSession({
-        accessToken: sessionNow.access_token,
-        refreshToken: sessionNow.refresh_token ?? '',
-        user: (userDataFinal.user as any) ?? (sessionNow.user as any) ?? (null as any),
+        accessToken: loginResult.data.token,
+        refreshToken: loginResult.data.refresh_token ?? '',
+        user: loginResult.data.user ?? null,
       });
 
       goOnboarding();

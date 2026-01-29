@@ -6,29 +6,13 @@ import { usePathname, useRouter } from 'next/navigation';
 import styles from './RaimonShell.module.css';
 import { Home, Folder, Plus, LogOut, ChevronLeft, Menu, X } from 'lucide-react';
 import { useSession } from './providers/SessionProvider';
-import { createClient } from '@supabase/supabase-js';
-// import { apiFetch } from '../../lib/api-client'; // opcional, si todavía lo usas
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!SUPABASE_URL || !SUPABASE_ANON) {
-  throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
-}
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    flowType: 'pkce',
-  },
-});
+import { createClient } from '../../lib/supabase/client';
 
 export default function RaimonShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { session, status, clear } = useSession();
+  const supabase = createClient();
   const flush = pathname?.startsWith('/dashboard/focus');
 
   const [collapsed, setCollapsed] = useState(false);

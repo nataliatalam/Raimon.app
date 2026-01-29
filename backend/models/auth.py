@@ -82,3 +82,7 @@ class TokenData(BaseModel):
     user: UserResponse
     token: str
     refresh_token: str
+
+
+class GoogleAuthRequest(BaseModel):
+    access_token: str = Field(..., min_length=1, max_length=4096)
