@@ -58,3 +58,10 @@ backend/.venv/
 node_modules/
 .next/
 .env*
+.env
+.env.*
+
+# env
+.env
+.env.*
+!.env.example
