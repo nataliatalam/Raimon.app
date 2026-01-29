@@ -6,27 +6,27 @@ import { usePathname, useRouter } from 'next/navigation';
 import styles from './RaimonShell.module.css';
 import { Home, Folder, Plus, LogOut, ChevronLeft, Menu, X } from 'lucide-react';
 import { useSession } from './providers/SessionProvider';
-import { apiFetch } from '../../lib/api-client';
+import { createClient } from '../../lib/supabase/client';
 
 export default function RaimonShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { session, status, clear } = useSession();
+  const supabase = createClient();
   const flush = pathname?.startsWith('/dashboard/focus');
+
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [logoutPending, setLogoutPending] = useState(false);
 
   const isMobile = () => (typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
 
-  // Restore collapsed state (desktop only)
   useEffect(() => {
     if (isMobile()) return;
     const saved = localStorage.getItem('raimon_sidebar_collapsed');
     if (saved === 'true') setCollapsed(true);
   }, []);
 
-  // Lock body scroll when mobile menu open
   useEffect(() => {
     if (!isMobile()) return;
     document.body.style.overflow = mobileOpen ? 'hidden' : '';
@@ -53,7 +53,6 @@ export default function RaimonShell({ children }: { children: React.ReactNode })
     if (!pathname) return false;
     if (pathname === href) return true;
     if (href === '/') return false;
-    // Only match child routes (href + '/'), and exclude /projects/new from matching /projects
     if (href === '/projects' && pathname.startsWith('/projects/new')) return false;
     return pathname.startsWith(href + '/');
   }
@@ -61,14 +60,21 @@ export default function RaimonShell({ children }: { children: React.ReactNode })
   async function handleLogout() {
     if (logoutPending) return;
     setLogoutPending(true);
+
     try {
-      await apiFetch('/api/auth/logout', { method: 'POST' });
-    } catch {
-      // ignore network errors
+      // ✅ REAL logout from Supabase (clears persisted session)
+      await supabase.auth.signOut({ scope: 'local' });
+
+      // (Opcional) Si todavía tienes backend cookies/sessions:
+      // await apiFetch('/api/auth/logout', { method: 'POST' });
+    } catch (e) {
+      // aunque falle, igual limpia tu state para sacar a la persona
+      console.error('Logout error:', e);
     } finally {
-      clear();
+      clear(); // ✅ limpia SessionProvider
       setLogoutPending(false);
       router.replace('/login');
+      router.refresh();
     }
   }
 
@@ -80,11 +86,10 @@ export default function RaimonShell({ children }: { children: React.ReactNode })
     return <div className={styles.shellLoading}>Redirecting…</div>;
   }
 
-  const userName = session.user?.name ?? 'Friend';
+  const userName = (session.user as any)?.name ?? (session.user as any)?.user_metadata?.full_name ?? 'Friend';
 
   return (
     <div className={styles.app}>
-      {/* Mobile menu button */}
       <button
         className={styles.mobileMenuBtn}
         onClick={() => setMobileOpen(true)}
@@ -94,13 +99,11 @@ export default function RaimonShell({ children }: { children: React.ReactNode })
         <Menu />
       </button>
 
-      {/* Mobile overlay */}
       <div
         className={`${styles.mobileOverlay} ${mobileOpen ? styles.mobileOverlayActive : ''}`}
         onClick={() => setMobileOpen(false)}
       />
 
-      {/* Sidebar */}
       <aside
         className={[
           styles.sidebar,
@@ -117,7 +120,6 @@ export default function RaimonShell({ children }: { children: React.ReactNode })
           <X />
         </button>
 
-        {/* LOGO */}
         <div className={styles.logoContainer}>
           <div className={styles.logoWrapper}>
             <img src="/raimon-logo.png" alt="Raimon" className={styles.logoImg} />
@@ -155,7 +157,6 @@ export default function RaimonShell({ children }: { children: React.ReactNode })
             <span>My Projects</span>
           </Link>
 
-          {/* Desktop collapse toggle */}
           <button
             className={styles.sidebarToggle}
             onClick={toggleCollapsed}
@@ -168,13 +169,18 @@ export default function RaimonShell({ children }: { children: React.ReactNode })
         </nav>
       </aside>
 
-      {/* Main */}
       <div className={`${styles.mainContent} ${collapsed ? styles.mainCollapsed : ''}`}>
         <header className={styles.header}>
           <div className={styles.headerUser}>
             <span className={styles.headerGreeting}>Welcome back, {userName}</span>
           </div>
-          <button className={styles.headerLogout} onClick={handleLogout} type="button" disabled={logoutPending}>
+
+          <button
+            className={styles.headerLogout}
+            onClick={handleLogout}
+            type="button"
+            disabled={logoutPending}
+          >
             <LogOut />
             <span>{logoutPending ? 'Logging out…' : 'Log out'}</span>
           </button>

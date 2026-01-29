@@ -9,6 +9,7 @@ from models.auth import (
     VerifyCodeRequest,
     AuthResponse,
     UserResponse,
+    GoogleAuthRequest,
 )
 from core.supabase import get_supabase
 from core.security import (
@@ -286,4 +287,103 @@ async def reset_password(request_data: ResetPasswordRequest, request: Request):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired reset token",
+        )
+
+
+@router.post("/google", response_model=AuthResponse)
+async def google_auth(request_data: GoogleAuthRequest, request: Request):
+    """Exchange Supabase OAuth token for backend JWT tokens with account linking."""
+    check_rate_limit(request, max_requests=10, window_seconds=60)
+
+    supabase = get_supabase()
+
+    try:
+        # Verify the Supabase access token and get user
+        user_response = supabase.auth.get_user(request_data.access_token)
+
+        if not user_response.user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid access token",
+            )
+
+        user = user_response.user
+        google_user_id = user.id
+        email = user.email
+        name = user.user_metadata.get("full_name") or user.user_metadata.get("name") or ""
+
+        # First, check if user exists by email (for account linking)
+        existing_by_email = (
+            supabase.table("users").select("*").eq("email", email).execute()
+        )
+
+        if existing_by_email.data:
+            # Account linking: user exists with same email (e.g., signed up with password before)
+            existing_user = existing_by_email.data[0]
+            user_id = existing_user.get("id")
+            onboarding_completed = existing_user.get("onboarding_completed", False)
+            name = existing_user.get("name") or name
+
+            # Update last login
+            supabase.table("users").update(
+                {"last_login_at": datetime.now(timezone.utc).isoformat()}
+            ).eq("id", user_id).execute()
+
+            logger.info(f"AUTH_AUDIT: google auth linked to existing account user_id={user_id}")
+        else:
+            # Check if user exists by Google user ID
+            user_profile = (
+                supabase.table("users").select("*").eq("id", google_user_id).execute()
+            )
+
+            if user_profile.data:
+                # User exists with this Google ID
+                user_id = google_user_id
+                onboarding_completed = user_profile.data[0].get("onboarding_completed", False)
+                name = user_profile.data[0].get("name") or name
+
+                # Update last login
+                supabase.table("users").update(
+                    {"last_login_at": datetime.now(timezone.utc).isoformat()}
+                ).eq("id", user_id).execute()
+            else:
+                # New user - create profile
+                user_id = google_user_id
+                supabase.table("users").insert({
+                    "id": user_id,
+                    "email": email,
+                    "name": name,
+                    "onboarding_completed": False,
+                }).execute()
+                onboarding_completed = False
+
+                logger.info(f"AUTH_AUDIT: google auth new user created user_id={user_id}")
+
+        # Create backend JWT tokens
+        token = create_access_token(data={"sub": user_id, "email": email})
+        refresh_token = create_refresh_token(data={"sub": user_id, "email": email})
+
+        logger.info(f"AUTH_AUDIT: google auth success user_id={user_id}")
+
+        return AuthResponse(
+            success=True,
+            data={
+                "user": {
+                    "id": user_id,
+                    "email": email,
+                    "name": name,
+                    "onboarding_completed": onboarding_completed,
+                },
+                "token": token,
+                "refresh_token": refresh_token,
+            },
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"AUTH_AUDIT: google auth failed error={str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Google authentication failed",
         )

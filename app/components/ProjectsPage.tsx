@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import ProjectCard from './projects/components/ProjectCard';
 import Graveyard from './projects/components/Graveyard';
-import type { Project, GraveyardProject, Flower, ProjectStatus } from './projects/types';
+import type { Project, GraveyardProject, Flower } from './projects/types';
 import styles from './projects/ProjectsPage.module.css';
 import { useSession } from './providers/SessionProvider';
 import { apiFetch, ApiError } from '../../lib/api-client';
@@ -49,6 +50,7 @@ function defaultMeta(project: Project, now?: number): GraveyardMeta {
 }
 
 export default function ProjectsPage() {
+  const router = useRouter();
   const { session, status } = useSession();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -181,6 +183,10 @@ export default function ProjectsPage() {
     }));
   }
 
+  function handleViewProject(projectId: string) {
+    router.push(`/projects/${projectId}`);
+  }
+
   const activeProjects = useMemo(() => projects.filter((p) => p.status === 'active' && p.progress < 100), [projects]);
   const pausedProjects = useMemo(() => projects.filter((p) => p.status === 'archived'), [projects]);
   const completedProjects = useMemo(
@@ -242,6 +248,7 @@ export default function ProjectsPage() {
                       project={project}
                       onToggleStatus={handleToggleStatus}
                       onKill={handleKillProject}
+                      onView={handleViewProject}
                       pending={pendingMap[project.id]}
                     />
                   ))
@@ -264,6 +271,7 @@ export default function ProjectsPage() {
                       project={project}
                       onToggleStatus={handleToggleStatus}
                       onKill={handleKillProject}
+                      onView={handleViewProject}
                       pending={pendingMap[project.id]}
                     />
                   ))
