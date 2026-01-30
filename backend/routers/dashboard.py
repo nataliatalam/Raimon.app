@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from datetime import datetime, timezone, timedelta, date
 from typing import Optional
-from core.supabase import get_supabase
+from core.supabase import get_supabase_admin
 from core.security import get_current_user
 import logging
 
@@ -37,7 +37,7 @@ async def get_dashboard_summary(
 ):
     """Get the complete dashboard summary."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
         user_id = current_user["id"]
         today = date.today()
         now = datetime.now(timezone.utc)
@@ -215,7 +215,7 @@ async def get_current_task(
     current_user: dict = Depends(get_current_user),
 ):
     """Get the currently active task."""
-    supabase = get_supabase()
+    supabase = get_supabase_admin()
     now = datetime.now(timezone.utc)
 
     active_session = (
@@ -271,7 +271,7 @@ async def get_today_tasks(
     current_user: dict = Depends(get_current_user),
 ):
     """Get all tasks for today (due today or in progress)."""
-    supabase = get_supabase()
+    supabase = get_supabase_admin()
     today = date.today()
     today_start = datetime.combine(today, datetime.min.time()).replace(tzinfo=timezone.utc)
     today_end = today_start + timedelta(days=1)
@@ -347,7 +347,7 @@ async def get_greeting_message(
     current_user: dict = Depends(get_current_user),
 ):
     """Get a personalized greeting message."""
-    supabase = get_supabase()
+    supabase = get_supabase_admin()
     now = datetime.now(timezone.utc)
     today = date.today()
 

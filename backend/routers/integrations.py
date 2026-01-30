@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from pydantic import BaseModel
 from enum import Enum
-from core.supabase import get_supabase
+from core.supabase import get_supabase_admin
 from core.security import get_current_user
 import logging
 
@@ -92,7 +92,7 @@ async def list_integrations(
 ):
     """List all available integrations and their status."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # Get user's connected integrations
         connected = (
@@ -145,7 +145,7 @@ async def connect_integration(
 ):
     """Connect to an integration."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # Check if already connected
         existing = (
@@ -204,7 +204,7 @@ async def disconnect_integration(
 ):
     """Disconnect from an integration."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # Verify connection exists
         existing = (
@@ -247,7 +247,7 @@ async def sync_integration(
 ):
     """Sync data with an integration."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         integration = (
             supabase.table("integrations")
@@ -309,7 +309,7 @@ async def get_integration_status(
 ):
     """Get detailed status of an integration."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         integration = (
             supabase.table("integrations")

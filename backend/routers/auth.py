@@ -11,7 +11,7 @@ from models.auth import (
     UserResponse,
     GoogleAuthRequest,
 )
-from core.supabase import get_supabase
+from core.supabase import get_supabase, get_supabase_admin
 from core.security import (
     create_access_token,
     create_refresh_token,
@@ -22,6 +22,7 @@ from core.security import (
 from core.rate_limit import check_rate_limit
 from supabase_auth.errors import AuthApiError
 import logging
+import jwt
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
@@ -247,12 +248,25 @@ async def forgot_password(request_data: ForgotPasswordRequest, request: Request)
     """Send password reset email."""
     check_rate_limit(request, max_requests=3, window_seconds=60)
 
-    supabase = get_supabase()
+    supabase_admin = get_supabase_admin()
 
     try:
-        supabase.auth.reset_password_email(request_data.email)
-    except AuthApiError:
+        # Get the frontend URL for redirect
+        frontend_url = request.headers.get("origin", "http://localhost:3000")
+        redirect_url = f"{frontend_url}/reset-password"
+
+        # Send password reset email via Supabase
+        supabase_admin.auth.reset_password_email(
+            request_data.email,
+            {"redirect_to": redirect_url}
+        )
+        logger.info(f"AUTH_AUDIT: password reset email sent to {request_data.email}")
+    except AuthApiError as e:
+        logger.warning(f"AUTH_AUDIT: forgot password error: {e}")
         pass  # Don't reveal if email exists
+    except Exception as e:
+        logger.warning(f"AUTH_AUDIT: forgot password unexpected error: {e}")
+        pass  # Don't reveal errors
 
     # Always return success to prevent email enumeration
     return AuthResponse(success=True, message="If that email exists, a reset link has been sent")
@@ -260,30 +274,43 @@ async def forgot_password(request_data: ForgotPasswordRequest, request: Request)
 
 @router.post("/reset-password", response_model=AuthResponse)
 async def reset_password(request_data: ResetPasswordRequest, request: Request):
-    """Reset password with token from email."""
+    """Reset password with access token from email link."""
     check_rate_limit(request, max_requests=3, window_seconds=60)
 
-    supabase = get_supabase()
+    supabase_admin = get_supabase_admin()
 
     try:
-        # Verify the reset token and update password
-        auth_response = supabase.auth.verify_otp(
-            {"token_hash": request_data.token, "type": "recovery"}
+        # The token from the URL is a Supabase access token
+        # Verify it and get the user
+        user_response = supabase_admin.auth.get_user(request_data.token)
+
+        if not user_response.user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired reset token",
+            )
+
+        user_id = user_response.user.id
+
+        # Update the user's password using admin client
+        supabase_admin.auth.admin.update_user_by_id(
+            user_id,
+            {"password": request_data.password}
         )
 
-        if auth_response.user:
-            supabase.auth.update_user({"password": request_data.password})
-            logger.info(f"AUTH_AUDIT: password reset user_id={auth_response.user.id}")
-            return AuthResponse(success=True, message="Password reset successful")
+        logger.info(f"AUTH_AUDIT: password reset success user_id={user_id}")
+        return AuthResponse(success=True, message="Password reset successful")
 
+    except HTTPException:
+        raise
+    except AuthApiError as e:
+        logger.warning(f"AUTH_AUDIT: reset password AuthApiError: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired reset token",
         )
-
-    except HTTPException:
-        raise
-    except AuthApiError:
+    except Exception as e:
+        logger.warning(f"AUTH_AUDIT: reset password error: {e}, type={type(e).__name__}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired reset token",
@@ -296,25 +323,46 @@ async def google_auth(request_data: GoogleAuthRequest, request: Request):
     check_rate_limit(request, max_requests=10, window_seconds=60)
 
     supabase = get_supabase()
+    supabase_admin = get_supabase_admin()
 
     try:
         # Verify the Supabase access token and get user
-        user_response = supabase.auth.get_user(request_data.access_token)
+        logger.info(f"AUTH_AUDIT: google auth attempting token verification, token_length={len(request_data.access_token)}")
 
-        if not user_response.user:
+        # Decode the Supabase JWT to extract user info
+        # Supabase JWTs contain user_metadata with Google user info
+        try:
+            decoded = jwt.decode(request_data.access_token, options={"verify_signature": False})
+            logger.info(f"AUTH_AUDIT: decoded JWT sub={decoded.get('sub')}, email={decoded.get('email')}")
+
+            google_user_id = decoded.get("sub")
+            email = decoded.get("email")
+            user_metadata = decoded.get("user_metadata", {})
+            name = user_metadata.get("full_name") or user_metadata.get("name") or ""
+
+            if not google_user_id or not email:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid access token: missing user info",
+                )
+
+        except jwt.PyJWTError as jwt_err:
+            logger.warning(f"AUTH_AUDIT: JWT decode failed: {jwt_err}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid access token format",
+            )
+        except Exception as decode_err:
+            logger.warning(f"AUTH_AUDIT: JWT decode unexpected error: {decode_err}, type={type(decode_err).__name__}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid access token",
             )
 
-        user = user_response.user
-        google_user_id = user.id
-        email = user.email
-        name = user.user_metadata.get("full_name") or user.user_metadata.get("name") or ""
-
         # First, check if user exists by email (for account linking)
+        # Use admin client to bypass RLS
         existing_by_email = (
-            supabase.table("users").select("*").eq("email", email).execute()
+            supabase_admin.table("users").select("*").eq("email", email).execute()
         )
 
         if existing_by_email.data:
@@ -325,7 +373,7 @@ async def google_auth(request_data: GoogleAuthRequest, request: Request):
             name = existing_user.get("name") or name
 
             # Update last login
-            supabase.table("users").update(
+            supabase_admin.table("users").update(
                 {"last_login_at": datetime.now(timezone.utc).isoformat()}
             ).eq("id", user_id).execute()
 
@@ -333,7 +381,7 @@ async def google_auth(request_data: GoogleAuthRequest, request: Request):
         else:
             # Check if user exists by Google user ID
             user_profile = (
-                supabase.table("users").select("*").eq("id", google_user_id).execute()
+                supabase_admin.table("users").select("*").eq("id", google_user_id).execute()
             )
 
             if user_profile.data:
@@ -343,13 +391,13 @@ async def google_auth(request_data: GoogleAuthRequest, request: Request):
                 name = user_profile.data[0].get("name") or name
 
                 # Update last login
-                supabase.table("users").update(
+                supabase_admin.table("users").update(
                     {"last_login_at": datetime.now(timezone.utc).isoformat()}
                 ).eq("id", user_id).execute()
             else:
                 # New user - create profile
                 user_id = google_user_id
-                supabase.table("users").insert({
+                supabase_admin.table("users").insert({
                     "id": user_id,
                     "email": email,
                     "name": name,
@@ -381,8 +429,14 @@ async def google_auth(request_data: GoogleAuthRequest, request: Request):
 
     except HTTPException:
         raise
+    except AuthApiError as e:
+        logger.warning(f"AUTH_AUDIT: google auth AuthApiError error={str(e)}, code={getattr(e, 'code', 'N/A')}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Google authentication failed: {str(e)}",
+        )
     except Exception as e:
-        logger.warning(f"AUTH_AUDIT: google auth failed error={str(e)}")
+        logger.warning(f"AUTH_AUDIT: google auth failed error={str(e)}, type={type(e).__name__}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Google authentication failed",

@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 from models.notification import NotificationType
-from core.supabase import get_supabase
+from core.supabase import get_supabase_admin
 from core.security import get_current_user
 import logging
 
@@ -22,7 +22,7 @@ async def list_notifications(
 ):
     """List notifications for the current user."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         query = (
             supabase.table("notifications")
@@ -74,7 +74,7 @@ async def mark_notification_read(
 ):
     """Mark a notification as read."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # Verify ownership
         notification = (
@@ -117,7 +117,7 @@ async def mark_all_notifications_read(
     current_user: dict = Depends(get_current_user),
 ):
     """Mark all notifications as read."""
-    supabase = get_supabase()
+    supabase = get_supabase_admin()
 
     response = (
         supabase.table("notifications")
@@ -139,7 +139,7 @@ async def delete_notification(
     current_user: dict = Depends(get_current_user),
 ):
     """Delete a notification."""
-    supabase = get_supabase()
+    supabase = get_supabase_admin()
 
     # Verify ownership
     notification = (
@@ -173,7 +173,7 @@ async def create_notification(
     metadata: dict = None,
 ):
     """Create a new notification for a user."""
-    supabase = get_supabase()
+    supabase = get_supabase_admin()
 
     notification_data = {
         "user_id": user_id,

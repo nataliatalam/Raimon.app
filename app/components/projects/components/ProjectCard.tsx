@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Eye, Pause, Play, Skull } from 'lucide-react';
+import { Eye, Pause, Play, Skull, Trash2 } from 'lucide-react';
 import type { Project } from '../types';
 import styles from './ProjectCard.module.css';
 
@@ -10,6 +10,7 @@ interface ProjectCardProps {
   onToggleStatus?: (id: string) => void;
   onKill?: (id: string) => void;
   onView?: (id: string) => void;
+  onDelete?: (id: string) => void;
   isBeyond?: boolean;
   pending?: boolean;
 }
@@ -19,6 +20,7 @@ export default function ProjectCard({
   onToggleStatus,
   onKill,
   onView,
+  onDelete,
   isBeyond = false,
   pending = false,
 }: ProjectCardProps) {
@@ -100,13 +102,13 @@ export default function ProjectCard({
       </div>
 
       {/* Actions */}
-      {!isBeyond && (
-        <div className={styles.actions}>
+      <div className={styles.actions}>
+        {onView && (
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-            onView?.(project.id);
+              onView(project.id);
             }}
             className={styles.iconBtn}
             title="View Project"
@@ -114,39 +116,59 @@ export default function ProjectCard({
           >
             <Eye size={18} />
           </button>
+        )}
 
+        {!isBeyond && (
+          <>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleStatus?.(project.id);
+              }}
+              className={[
+                styles.primaryBtn,
+                isActive ? styles.primaryPause : styles.primaryPlay,
+              ].join(' ')}
+              title={isActive ? 'Pause Flow' : 'Resume Flow'}
+              aria-label={isActive ? 'Pause flow' : 'Resume flow'}
+              disabled={pending}
+            >
+              {isActive ? <Pause size={20} /> : <Play size={20} />}
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onKill?.(project.id);
+              }}
+              className={styles.dangerBtn}
+              title="Move to Graveyard"
+              aria-label="Move to graveyard"
+              disabled={pending}
+            >
+              <Skull size={18} />
+            </button>
+          </>
+        )}
+
+        {onDelete && (
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              onToggleStatus?.(project.id);
-            }}
-            className={[
-              styles.primaryBtn,
-              isActive ? styles.primaryPause : styles.primaryPlay,
-            ].join(' ')}
-            title={isActive ? 'Pause Flow' : 'Resume Flow'}
-            aria-label={isActive ? 'Pause flow' : 'Resume flow'}
-            disabled={pending}
-          >
-            {isActive ? <Pause size={20} /> : <Play size={20} />}
-          </button>
-
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onKill?.(project.id);
+              onDelete(project.id);
             }}
             className={styles.dangerBtn}
-            title="Move to Graveyard"
-            aria-label="Move to graveyard"
+            title="Delete Project"
+            aria-label="Delete project"
             disabled={pending}
           >
-            <Skull size={18} />
+            <Trash2 size={18} />
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

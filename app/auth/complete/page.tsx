@@ -17,15 +17,22 @@ export default function AuthCompletePage() {
     (async () => {
       try {
         // Get the Supabase session (set by the route handler via cookies)
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+        console.log('Auth complete: getSession result', {
+          hasSession: !!session,
+          error: sessionError?.message,
+          accessTokenLength: session?.access_token?.length,
+          expiresAt: session?.expires_at
+        });
 
         if (!session) {
-          console.error('No Supabase session found');
+          console.error('No Supabase session found', sessionError);
           window.location.href = '/login?error=no_session';
           return;
         }
 
-        console.log('Auth complete: Got Supabase session, calling backend...');
+        console.log('Auth complete: Got Supabase session, calling backend with token length:', session.access_token.length);
 
         // Exchange Supabase token for backend JWT
         const result = await apiFetch<ApiSuccessResponse<{

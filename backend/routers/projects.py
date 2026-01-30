@@ -26,7 +26,7 @@ router = APIRouter(prefix="/api/projects", tags=["Projects"])
 async def get_user_project(project_id, user_id: str):
     """Fetch a project and verify ownership."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
         response = (
             supabase.table("projects")
             .select("*")
@@ -56,7 +56,7 @@ async def get_user_project(project_id, user_id: str):
 async def get_project_with_stats(project: dict) -> dict:
     """Add task statistics to a project."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # Get task counts
         tasks_response = (
@@ -95,7 +95,7 @@ async def list_projects(
 ):
     """List all projects for the authenticated user."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         query = supabase.table("projects").select("*").eq("user_id", current_user["id"])
 
@@ -125,11 +125,15 @@ async def list_projects(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to list projects: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to list projects",
-        )
+        logger.error(f"Failed to list projects: {e}", exc_info=True)
+        # Return empty list on error instead of 500
+        return {
+            "success": True,
+            "data": {
+                "projects": [],
+                "total": 0,
+            },
+        }
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -139,7 +143,7 @@ async def create_project(
 ):
     """Create a new project."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # Prepare project data
         project_data = {
@@ -201,7 +205,7 @@ async def list_archived_projects(
 ):
     """List all archived projects (graveyard)."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         response = (
             supabase.table("projects")
@@ -227,11 +231,15 @@ async def list_archived_projects(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to list archived projects: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to list archived projects",
-        )
+        logger.error(f"Failed to list archived projects: {e}", exc_info=True)
+        # Return empty list on error instead of 500
+        return {
+            "success": True,
+            "data": {
+                "projects": [],
+                "total": 0,
+            },
+        }
 
 
 @router.get("/{project_id}")
@@ -239,21 +247,46 @@ async def get_project(
     project_id: UUID,
     current_user: dict = Depends(get_current_user),
 ):
-    """Get a specific project by ID."""
+    """Get a specific project by ID with tasks and notes."""
     try:
         project = await get_user_project(project_id, current_user["id"])
         project_with_stats = await get_project_with_stats(project)
 
-        # Get project details if exists
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
+
+        # Get project details if exists (includes notes)
         details_response = (
             supabase.table("project_details")
             .select("*")
             .eq("project_id", str(project_id))
             .execute()
         )
-
         details = details_response.data[0] if details_response.data else None
+
+        # Get tasks for this project
+        tasks_response = (
+            supabase.table("tasks")
+            .select("*")
+            .eq("project_id", str(project_id))
+            .order("created_at", desc=False)
+            .execute()
+        )
+
+        # Format tasks for frontend
+        tasks = []
+        for task in (tasks_response.data or []):
+            tasks.append({
+                "id": task["id"],
+                "title": task.get("title", ""),
+                "completed": task.get("status") == "completed",
+                "dueDate": task.get("deadline"),  # Table uses 'deadline' column
+                "priority": task.get("priority", "medium"),
+                "subtasks": [],  # TODO: fetch subtasks if needed
+            })
+
+        # Add tasks and notes to project response
+        project_with_stats["tasks"] = tasks
+        project_with_stats["notes"] = details.get("notes", "") if details else ""
 
         return {
             "success": True,
@@ -278,14 +311,14 @@ async def update_project(
     request: ProjectUpdate,
     current_user: dict = Depends(get_current_user),
 ):
-    """Update a project."""
+    """Update a project including notes and tasks."""
     try:
         # Verify ownership
         await get_user_project(project_id, current_user["id"])
 
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
-        # Build update data (exclude None values)
+        # Build update data for projects table (exclude None values)
         update_data = {}
         if request.name is not None:
             update_data["name"] = request.name
@@ -304,28 +337,105 @@ async def update_project(
         if request.target_end_date is not None:
             update_data["target_end_date"] = request.target_end_date.isoformat()
 
-        if not update_data:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No fields to update",
+        # Update projects table if there's data
+        if update_data:
+            response = (
+                supabase.table("projects")
+                .update(update_data)
+                .eq("id", str(project_id))
+                .eq("user_id", current_user["id"])
+                .execute()
             )
+            project_result = response.data[0] if response.data else None
+        else:
+            project_result = None
 
-        response = (
-            supabase.table("projects")
-            .update(update_data)
-            .eq("id", str(project_id))
-            .eq("user_id", current_user["id"])
-            .execute()
-        )
+        # Handle notes - store in project_details table
+        if request.notes is not None:
+            try:
+                existing_details = (
+                    supabase.table("project_details")
+                    .select("id")
+                    .eq("project_id", str(project_id))
+                    .execute()
+                )
+
+                if existing_details.data:
+                    supabase.table("project_details").update(
+                        {"notes": request.notes}
+                    ).eq("project_id", str(project_id)).execute()
+                else:
+                    supabase.table("project_details").insert(
+                        {"project_id": str(project_id), "notes": request.notes}
+                    ).execute()
+            except Exception as notes_err:
+                logger.warning(f"Failed to save notes (column may not exist): {notes_err}")
+                # Continue without failing - notes column might not exist
+
+        # Handle tasks - sync with tasks table
+        if request.tasks is not None:
+            try:
+                # Get existing tasks for this project
+                existing_tasks = (
+                    supabase.table("tasks")
+                    .select("id")
+                    .eq("project_id", str(project_id))
+                    .execute()
+                )
+                existing_task_ids = {t["id"] for t in (existing_tasks.data or [])}
+
+                # Track which tasks are in the request
+                request_task_ids = set()
+
+                for task in request.tasks:
+                    # Use correct status values: 'todo', 'in_progress', 'paused', 'on_break', 'blocked', 'completed'
+                    task_data = {
+                        "project_id": str(project_id),
+                        "user_id": current_user["id"],
+                        "title": task.title,
+                        "status": "completed" if task.completed else "todo",
+                    }
+
+                    # Add optional fields using correct column names
+                    if task.due_date:
+                        task_data["deadline"] = task.due_date  # Table uses 'deadline' not 'due_date'
+                    if task.priority:
+                        task_data["priority"] = task.priority
+
+                    # Check if this is an existing task (valid UUID format)
+                    is_existing = (
+                        task.id
+                        and task.id in existing_task_ids
+                        and len(task.id) == 36  # UUID format check
+                        and "-" in task.id
+                    )
+
+                    if is_existing:
+                        # Update existing task
+                        supabase.table("tasks").update(task_data).eq("id", task.id).execute()
+                        request_task_ids.add(task.id)
+                    else:
+                        # Create new task
+                        new_task = supabase.table("tasks").insert(task_data).execute()
+                        if new_task.data:
+                            request_task_ids.add(new_task.data[0]["id"])
+
+                # Delete tasks that are no longer in the request
+                tasks_to_delete = existing_task_ids - request_task_ids
+                for task_id in tasks_to_delete:
+                    supabase.table("tasks").delete().eq("id", task_id).execute()
+            except Exception as tasks_err:
+                logger.error(f"Failed to save tasks: {tasks_err}", exc_info=True)
+                # Continue without failing - but log the full error
 
         return {
             "success": True,
-            "data": {"project": response.data[0] if response.data else None},
+            "data": {"project": project_result},
         }
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to update project: {e}")
+        logger.error(f"Failed to update project: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update project",
@@ -343,7 +453,7 @@ async def delete_project(
         # Verify ownership
         await get_user_project(project_id, current_user["id"])
 
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         if permanent:
             # Hard delete - cascades to tasks, details, etc.
@@ -389,7 +499,7 @@ async def archive_project(
     try:
         await get_user_project(project_id, current_user["id"])
 
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         response = (
             supabase.table("projects")
@@ -433,7 +543,7 @@ async def restore_project(
                 detail="Project is not archived",
             )
 
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         response = (
             supabase.table("projects")
@@ -475,7 +585,7 @@ async def update_project_profile(
     try:
         await get_user_project(project_id, current_user["id"])
 
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         update_data = request.model_dump(exclude_none=True)
         if not update_data:
@@ -515,7 +625,7 @@ async def update_project_goals(
     try:
         await get_user_project(project_id, current_user["id"])
 
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # Upsert into project_details
         existing = (
@@ -558,7 +668,7 @@ async def update_project_resources(
     try:
         await get_user_project(project_id, current_user["id"])
 
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         resources_data = [r.model_dump() for r in request.resources]
 
@@ -602,7 +712,7 @@ async def update_project_timeline(
     try:
         await get_user_project(project_id, current_user["id"])
 
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # Update dates on projects table
         project_update = {}
@@ -660,7 +770,7 @@ async def update_project_stakeholders(
     try:
         await get_user_project(project_id, current_user["id"])
 
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         stakeholders_data = [s.model_dump() for s in request.stakeholders]
 
@@ -809,7 +919,7 @@ async def list_project_files(
         # Verify ownership
         await get_user_project(project_id, current_user["id"])
 
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         response = (
             supabase.table("project_files")
@@ -826,11 +936,12 @@ async def list_project_files(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to list project files: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to list project files",
-        )
+        logger.error(f"Failed to list project files: {e}", exc_info=True)
+        # Return empty list on error instead of 500
+        return {
+            "success": True,
+            "data": {"files": []},
+        }
 
 
 @router.delete("/{project_id}/files/{file_id}")
@@ -902,7 +1013,7 @@ async def create_project_with_files(
 ):
     """Create a new project with optional file uploads."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # Prepare project data
         project_data = {

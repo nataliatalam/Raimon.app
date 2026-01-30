@@ -59,6 +59,8 @@ export default function ProjectsPage() {
   const [flowerPoints, setFlowerPoints] = useState(30);
   const [graveyardMeta, setGraveyardMeta] = useState<Record<string, GraveyardMeta>>({});
   const [clientNow, setClientNow] = useState<number | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     // Set client time to avoid hydration mismatch
@@ -187,10 +189,35 @@ export default function ProjectsPage() {
     router.push(`/projects/${projectId}`);
   }
 
-  const activeProjects = useMemo(() => projects.filter((p) => p.status === 'active' && p.progress < 100), [projects]);
+  function handleDeleteProject(projectId: string) {
+    const project = projects.find((p) => p.id === projectId);
+    if (!project) return;
+    setDeleteConfirm({ id: project.id, name: project.name });
+  }
+
+  async function confirmDelete() {
+    if (!deleteConfirm) return;
+    setDeleting(true);
+    try {
+      await apiFetch(`/api/projects/${deleteConfirm.id}?permanent=true`, { method: 'DELETE' });
+      setDeleteConfirm(null);
+      await fetchProjects();
+    } catch (err) {
+      if (err instanceof ApiError) setError(err.message);
+      else setError('Failed to delete project');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  function cancelDelete() {
+    setDeleteConfirm(null);
+  }
+
+  const activeProjects = useMemo(() => projects.filter((p) => p.status === 'active'), [projects]);
   const pausedProjects = useMemo(() => projects.filter((p) => p.status === 'archived'), [projects]);
   const completedProjects = useMemo(
-    () => projects.filter((p) => p.status === 'completed' || p.progress >= 100),
+    () => projects.filter((p) => p.status === 'completed'),
     [projects],
   );
 
@@ -249,6 +276,7 @@ export default function ProjectsPage() {
                       onToggleStatus={handleToggleStatus}
                       onKill={handleKillProject}
                       onView={handleViewProject}
+                      onDelete={handleDeleteProject}
                       pending={pendingMap[project.id]}
                     />
                   ))
@@ -272,6 +300,7 @@ export default function ProjectsPage() {
                       onToggleStatus={handleToggleStatus}
                       onKill={handleKillProject}
                       onView={handleViewProject}
+                      onDelete={handleDeleteProject}
                       pending={pendingMap[project.id]}
                     />
                   ))
@@ -289,7 +318,14 @@ export default function ProjectsPage() {
                   <div className={styles.emptyState}>Finish a project to celebrate here.</div>
                 ) : (
                   completedProjects.map((project) => (
-                    <ProjectCard key={`completed-${project.id}`} project={project} isBeyond pending={pendingMap[project.id]} />
+                    <ProjectCard
+                      key={`completed-${project.id}`}
+                      project={project}
+                      isBeyond
+                      pending={pendingMap[project.id]}
+                      onView={handleViewProject}
+                      onDelete={handleDeleteProject}
+                    />
                   ))
                 )}
               </div>
@@ -304,6 +340,36 @@ export default function ProjectsPage() {
               onWriteEpitaph={handleWriteEpitaph}
             />
           </>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {deleteConfirm && (
+          <div className={styles.modalOverlay} onClick={cancelDelete}>
+            <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+              <h3 className={styles.modalTitle}>Delete Project?</h3>
+              <p className={styles.modalText}>
+                Are you sure you want to permanently delete <strong>{deleteConfirm.name}</strong>? This action cannot be undone.
+              </p>
+              <div className={styles.modalActions}>
+                <button
+                  type="button"
+                  className={styles.modalCancel}
+                  onClick={cancelDelete}
+                  disabled={deleting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className={styles.modalDelete}
+                  onClick={confirmDelete}
+                  disabled={deleting}
+                >
+                  {deleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 from models.notification import ReminderCreate, ReminderUpdate, ReminderFrequency
-from core.supabase import get_supabase
+from core.supabase import get_supabase_admin
 from core.security import get_current_user
 import logging
 
@@ -20,7 +20,7 @@ async def list_reminders(
 ):
     """List reminders for the current user."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         query = (
             supabase.table("reminders")
@@ -70,7 +70,7 @@ async def create_reminder(
 ):
     """Create a new reminder."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # Validate task_id if provided
         if request.task_id:
@@ -143,7 +143,7 @@ async def get_reminder(
 ):
     """Get a specific reminder."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         response = (
             supabase.table("reminders")
@@ -190,7 +190,7 @@ async def update_reminder(
 ):
     """Update a reminder."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # Verify ownership
         existing = (
@@ -253,7 +253,7 @@ async def delete_reminder(
 ):
     """Delete a reminder."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # Verify ownership
         existing = (
@@ -294,7 +294,7 @@ async def snooze_reminder(
 ):
     """Snooze a reminder for a specified number of minutes."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # Verify ownership
         existing = (

@@ -613,7 +613,7 @@ export default function LoginPage() {
                           <button
                             type="button"
                             className={styles.forgotLink}
-                            onClick={() => setError('Password reset not wired yet.')}
+                            onClick={() => router.push('/forgot-password')}
                           >
                             Forgot password?
                           </button>
@@ -808,7 +808,7 @@ export default function LoginPage() {
                       <button
                         type="button"
                         className={styles.mobileForgotPill}
-                        onClick={() => setError('Password reset not wired yet.')}
+                        onClick={() => router.push('/forgot-password')}
                       >
                         I forgot
                       </button>

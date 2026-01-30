@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List
 from models.next_do import NextDoFeedback, NextDoSkip
-from core.supabase import get_supabase
+from core.supabase import get_supabase_admin
 from core.security import get_current_user
 import logging
 
@@ -129,7 +129,7 @@ def calculate_task_score(task: dict, user_state: dict, current_hour: int) -> tup
 
 async def get_user_current_state(user_id: str) -> dict:
     """Get the user's current state including energy level."""
-    supabase = get_supabase()
+    supabase = get_supabase_admin()
 
     # Try to get today's check-in
     today = datetime.now(timezone.utc).date().isoformat()
@@ -167,7 +167,7 @@ async def get_next_do(
 ):
     """Get the single most important task to do right now."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # Get user's current state
         user_state = await get_user_current_state(current_user["id"])
@@ -243,7 +243,7 @@ async def submit_feedback(
     current_user: dict = Depends(get_current_user),
 ):
     """Submit feedback on a task recommendation."""
-    supabase = get_supabase()
+    supabase = get_supabase_admin()
 
     # Record feedback for AI learning
     feedback_data = {
@@ -271,7 +271,7 @@ async def skip_task(
     current_user: dict = Depends(get_current_user),
 ):
     """Skip the current recommended task and get the next one."""
-    supabase = get_supabase()
+    supabase = get_supabase_admin()
 
     # Record the skip
     skip_data = {
@@ -348,7 +348,7 @@ async def get_task_queue(
     limit: int = 5,
 ):
     """Get a preview of upcoming recommended tasks."""
-    supabase = get_supabase()
+    supabase = get_supabase_admin()
 
     user_state = await get_user_current_state(current_user["id"])
     current_hour = datetime.now(timezone.utc).hour
@@ -396,7 +396,7 @@ async def refresh_recommendations(
 ):
     """Force recalculation of task recommendations."""
     # This is essentially the same as GET /next-do but explicitly signals a refresh
-    supabase = get_supabase()
+    supabase = get_supabase_admin()
 
     user_state = await get_user_current_state(current_user["id"])
     current_hour = datetime.now(timezone.utc).hour

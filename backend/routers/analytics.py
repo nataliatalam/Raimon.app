@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, status, Depends, Query
 from datetime import datetime, timezone, timedelta, date
 from typing import Optional
 from collections import defaultdict
-from core.supabase import get_supabase
+from core.supabase import get_supabase_admin
 from core.security import get_current_user
 import logging
 
@@ -24,7 +24,7 @@ async def get_time_tracking(
 ):
     """Get time tracking analytics."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
         user_id = current_user["id"]
 
         # Default to last 7 days
@@ -127,7 +127,7 @@ async def get_productivity_metrics(
 ):
     """Get productivity metrics and trends."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
         user_id = current_user["id"]
 
         end = date.today() if not end_date else parse_date(end_date)
@@ -310,7 +310,7 @@ async def get_project_performance(
 ):
     """Get project performance metrics."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
         user_id = current_user["id"]
 
         # Get projects
@@ -414,7 +414,7 @@ async def get_goal_progress(
 ):
     """Get progress towards goals and targets."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
         user_id = current_user["id"]
         today = date.today()
         week_start = today - timedelta(days=today.weekday())

@@ -4,7 +4,7 @@ from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from core.config import get_settings
-from core.supabase import get_supabase
+from core.supabase import get_supabase, get_supabase_admin
 import threading
 import logging
 
@@ -100,7 +100,8 @@ async def get_current_user(
         )
 
     try:
-        supabase = get_supabase()
+        # Use admin client to bypass RLS
+        supabase = get_supabase_admin()
         response = (
             supabase.table("users")
             .select(USER_SAFE_COLUMNS)

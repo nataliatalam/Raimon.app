@@ -84,6 +84,18 @@ class ProjectCreate(BaseModel):
         return sanitize_string(v)
 
 
+class TaskUpdateSchema(BaseModel):
+    id: Optional[str] = None  # None for new tasks
+    title: str = Field(..., min_length=1, max_length=500)
+    completed: bool = False
+    due_date: Optional[str] = None
+    priority: Optional[str] = None
+    subtasks: Optional[List[Dict[str, Any]]] = None
+    depends_on: Optional[str] = None
+    blocker: Optional[str] = None
+    recurring: Optional[str] = None
+
+
 class ProjectUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=255)
     description: Optional[str] = Field(default=None, max_length=5000)
@@ -93,6 +105,8 @@ class ProjectUpdate(BaseModel):
     icon: Optional[str] = Field(default=None, max_length=50)
     start_date: Optional[date] = None
     target_end_date: Optional[date] = None
+    notes: Optional[str] = Field(default=None, max_length=50000)
+    tasks: Optional[List[TaskUpdateSchema]] = None
 
     @field_validator("name")
     @classmethod
@@ -102,6 +116,11 @@ class ProjectUpdate(BaseModel):
     @field_validator("description")
     @classmethod
     def sanitize_description(cls, v):
+        return sanitize_string(v)
+
+    @field_validator("notes")
+    @classmethod
+    def sanitize_notes(cls, v):
         return sanitize_string(v)
 
 

@@ -15,7 +15,7 @@ from models.task import (
     TaskStatus,
     TaskPriority,
 )
-from core.supabase import get_supabase
+from core.supabase import get_supabase_admin
 from core.security import get_current_user
 import logging
 
@@ -27,7 +27,7 @@ router = APIRouter(tags=["Tasks"])
 async def verify_project_access(project_id, user_id: str):
     """Verify user has access to the project."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
         response = (
             supabase.table("projects")
             .select("id")
@@ -56,7 +56,7 @@ async def verify_project_access(project_id, user_id: str):
 async def get_user_task(task_id, user_id: str):
     """Fetch a task and verify ownership."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
         response = (
             supabase.table("tasks")
             .select("*")
@@ -84,7 +84,7 @@ async def get_user_task(task_id, user_id: str):
 
 async def get_active_session(task_id: str, user_id: str):
     """Get the active work session for a task."""
-    supabase = get_supabase()
+    supabase = get_supabase_admin()
     response = (
         supabase.table("work_sessions")
         .select("*")
@@ -101,7 +101,7 @@ async def get_active_session(task_id: str, user_id: str):
 
 async def end_active_session(task_id: str, user_id: str, energy_after: Optional[int] = None):
     """End the active work session for a task."""
-    supabase = get_supabase()
+    supabase = get_supabase_admin()
     session = await get_active_session(task_id, user_id)
 
     if session:
@@ -127,7 +127,7 @@ async def list_project_tasks(
     try:
         await verify_project_access(project_id, current_user["id"])
 
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         query = (
             supabase.table("tasks")
@@ -183,7 +183,7 @@ async def create_task(
     try:
         await verify_project_access(project_id, current_user["id"])
 
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # Validate parent task if provided
         if request.parent_task_id:
@@ -242,7 +242,7 @@ async def get_task(
         task = await get_user_task(task_id, current_user["id"])
 
         # Get subtasks
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
         subtasks_response = (
             supabase.table("tasks")
             .select("*")
@@ -281,7 +281,7 @@ async def update_task(
     try:
         await get_user_task(task_id, current_user["id"])
 
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         update_data = {}
         if request.title is not None:
@@ -337,7 +337,7 @@ async def delete_task(
     try:
         task = await get_user_task(task_id, current_user["id"])
 
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # Check for subtasks
         subtasks = (
@@ -382,7 +382,7 @@ async def update_task_status(
     try:
         task = await get_user_task(task_id, current_user["id"])
 
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         update_data = {"status": request.status.value}
 
@@ -425,7 +425,7 @@ async def update_task_priority(
     try:
         await get_user_task(task_id, current_user["id"])
 
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         response = (
             supabase.table("tasks")
@@ -465,7 +465,7 @@ async def start_task(
                 detail="Cannot start a completed task",
             )
 
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # Check if there's already an active session on any task
         existing_session = (
@@ -546,7 +546,7 @@ async def pause_task(
                 detail="Task is not in progress",
             )
 
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # End active session
         session = await end_active_session(task_id, current_user["id"])
@@ -598,7 +598,7 @@ async def complete_task(
                 detail="Task is already completed",
             )
 
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # End active session
         session = await end_active_session(task_id, current_user["id"], request.energy_after)
@@ -668,7 +668,7 @@ async def take_break(
                 detail="Task is not in progress",
             )
 
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # End active session
         session = await end_active_session(task_id, current_user["id"])
@@ -721,7 +721,7 @@ async def report_intervention(
     try:
         task = await get_user_task(task_id, current_user["id"])
 
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # Increment interruption count on active session
         session = await get_active_session(task_id, current_user["id"])

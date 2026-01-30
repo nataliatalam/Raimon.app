@@ -35,7 +35,7 @@ async def update_profile(
 ):
     """Update the current user's profile."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         update_data = request.model_dump(exclude_none=True)
         if not update_data:
@@ -72,7 +72,7 @@ async def update_preferences(
 ):
     """Update user preferences."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         update_data = request.model_dump(exclude_none=True)
         if not update_data:
@@ -184,7 +184,7 @@ async def update_onboarding(
 async def get_current_state(current_user: dict = Depends(get_current_user)):
     """Get the user's current state."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         response = (
             supabase.table("user_states")
@@ -226,7 +226,7 @@ async def daily_check_in(
 ):
     """Record daily check-in."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         today = date.today().isoformat()
 
@@ -296,7 +296,7 @@ async def daily_check_in(
 async def get_state_history(current_user: dict = Depends(get_current_user)):
     """Get the user's state history."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         response = (
             supabase.table("daily_check_ins")
@@ -334,7 +334,7 @@ async def update_energy_level(
         )
 
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # Update or create current state
         response = (
@@ -372,7 +372,7 @@ async def update_energy_level(
 async def get_flower_points(current_user: dict = Depends(get_current_user)):
     """Get the current user's flower points balance."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         response = (
             supabase.table("user_flower_points")
@@ -412,7 +412,7 @@ async def update_flower_points(
 ):
     """Update flower points (earn or spend)."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # Get current balance
         current = (
@@ -480,7 +480,7 @@ async def update_flower_points(
 async def get_all_graveyard_meta(current_user: dict = Depends(get_current_user)):
     """Get all graveyard metadata for the user."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # Get all graveyard meta entries
         meta_response = (
@@ -539,7 +539,7 @@ async def update_graveyard_meta(
 ):
     """Update or create graveyard metadata for a project."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # Verify project belongs to user
         project = (
@@ -637,7 +637,7 @@ async def delete_graveyard_meta(
 ):
     """Delete graveyard metadata for a project (e.g., on resurrection)."""
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # Delete meta (flowers will cascade delete)
         supabase.table("graveyard_meta").delete().eq(

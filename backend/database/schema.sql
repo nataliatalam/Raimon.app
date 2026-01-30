@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS public.project_details (
     milestones JSONB DEFAULT '[]',
     deadline TIMESTAMPTZ,
     people JSONB DEFAULT '[]',
+    notes TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

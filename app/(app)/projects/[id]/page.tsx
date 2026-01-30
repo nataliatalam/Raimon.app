@@ -137,13 +137,26 @@ export default function ProjectDetailPage() {
   async function handleSave(updatedProject: ProjectForView) {
     setSaving(true);
     try {
+      // Transform tasks to snake_case for backend
+      const tasksForBackend = updatedProject.tasks.map((task) => ({
+        id: task.id,
+        title: task.title,
+        completed: task.completed,
+        due_date: task.dueDate,
+        priority: task.priority,
+        subtasks: task.subtasks,
+        depends_on: task.dependsOn,
+        blocker: task.blocker,
+        recurring: task.recurring,
+      }));
+
       await apiFetch(`/api/projects/${projectId}`, {
         method: 'PUT',
         body: {
           name: updatedProject.name,
           description: updatedProject.description,
           notes: updatedProject.notes,
-          tasks: updatedProject.tasks,
+          tasks: tasksForBackend,
         },
       });
       setProject(updatedProject);
