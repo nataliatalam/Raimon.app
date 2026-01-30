@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useCallback, useEffect, useMemo, useState } from 'react';
 import type { SessionData, UserProfile } from '../../../types/api';
 import { clearSession, getStoredSession, saveSession, subscribeSession } from '../../../lib/session';
 
@@ -29,18 +29,22 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     return unsubscribe;
   }, []);
 
+  const setSession = useCallback(({ accessToken, refreshToken, user }: { accessToken: string; refreshToken: string; user: UserProfile }) => {
+    saveSession({ accessToken, refreshToken, user });
+  }, []);
+
+  const clear = useCallback(() => {
+    clearSession();
+  }, []);
+
   const value = useMemo<SessionContextValue>(
     () => ({
       session,
       status,
-      setSession: ({ accessToken, refreshToken, user }) => {
-        saveSession({ accessToken, refreshToken, user });
-      },
-      clear: () => {
-        clearSession();
-      },
+      setSession,
+      clear,
     }),
-    [session, status],
+    [session, status, setSession, clear],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
