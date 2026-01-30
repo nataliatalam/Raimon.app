@@ -96,15 +96,23 @@ export default function LoginPage() {
 
   // ✅ redirect if already authed
   useEffect(() => {
-    if (status !== 'ready') return;
-    if (!session.accessToken) return;
+    // DEBUG: Log session state
+    console.log('[LOGIN] Session check:', { status, accessToken: session.accessToken, user: session.user });
 
+    if (status !== 'ready') return;
+    if (!session.accessToken) {
+      console.log('[LOGIN] No access token, staying on login page');
+      return;
+    }
+
+    console.log('[LOGIN] Has access token, will redirect...');
     let canceled = false;
 
     (async () => {
       const fallback = hasCompletedOnboarding(session.user);
       const statusResponse = await fetchOnboardingStatus(fallback);
       if (canceled || !statusResponse) return;
+      console.log('[LOGIN] Redirecting to:', statusResponse.completed ? '/dashboard' : '/onboarding-questions');
       router.replace(statusResponse.completed ? '/dashboard' : '/onboarding-questions');
     })();
 
