@@ -1,0 +1,406 @@
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 48px;
+  min-height: 100vh;
+}
+
+/* Header */
+.header {
+  margin-bottom: 20px;
+}
+
+.welcomeLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: #FF6129;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.welcomeLabel::after {
+  content: '';
+  width: 32px;
+  height: 2px;
+  background: #FF6129;
+}
+
+.title {
+  font-size: 52px;
+  font-weight: 800;
+  color: #fff9f9;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+
+.title span {
+  color: #FF6129;
+}
+
+/* Main Card */
+.mainCard {
+  background: white;
+  border-radius: 32px;
+  padding: 40px;
+}
+
+/* Steps indicator */
+.stepsRow {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 32px;
+}
+
+.stepDash {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: #EBE8E0;
+  transition: all 0.3s;
+}
+
+.stepDash.active {
+  background: #1A1A1A;
+}
+
+.stepDash.done {
+  background: #22C55E;
+}
+
+/* Step Content */
+.step {
+  display: none;
+  animation: fadeIn 0.4s ease;
+}
+
+.step.activeStep {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Step Header */
+.stepTitle {
+  font-size: 20px;
+  font-weight: 400;
+  color: #6B6B6B;
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.stepBigTitle {
+  font-size: 48px;
+  font-weight: 300;
+  color: #1A1A1A;
+  text-align: center;
+  margin-bottom: 20px;
+  letter-spacing: -0.02em;
+}
+
+.gradientText {
+  background: linear-gradient(90deg, #EF874D 0%, #E96D53 55%, #DD5C58 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  display: inline-block;
+}
+
+
+/* Step 1: Hierarchy */
+.hierarchyContainer {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+.hierarchyColumn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+.hierarchyWord {
+  font-size: 52px;
+  font-weight: 300;
+  color: #1A1A1A;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.hierarchyWord.gradient {
+  background: linear-gradient(135deg, #A7F3D0 0%, #93C5FD 50%, #C4B5FD 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hierarchyArrow {
+  font-size: 36px;
+  color: #EBE8E0;
+  margin-top: 8px;
+}
+
+.hierarchyLine {
+  width: 2px;
+  height: 32px;
+  background: #EBE8E0;
+}
+
+.hierarchyDesc {
+  font-size: 14px;
+  color: #B5B5B5;
+  margin-top: 12px;
+  margin-bottom: 12px;
+}
+
+.exampleLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: #B5B5B5;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 12px;
+  margin-bottom: 8px;
+}
+
+.hierarchyPill {
+  padding: 12px 20px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.hierarchyPill.purple {
+  background: #EDE9FE;
+  color: #8B5CF6;
+}
+
+.hierarchyPill.blue {
+  background: #DBEAFE;
+  color: #3B82F6;
+}
+
+.hierarchyPill.green {
+  background: #DCFCE7;
+  color: #22C55E;
+}
+
+/* Step 2: Buttons grid */
+.buttonsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.buttonCard {
+  background: #F5F3ED;
+  border-radius: 24px;
+  padding: 32px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.buttonCardTop {
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.demoBtn {
+  padding: 12px 20px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: default;
+}
+
+.demoBtn.stuck {
+  background: white;
+  border: 2px solid #EBE8E0;
+  color: #6B6B6B;
+}
+
+.demoBtn.break {
+  background: white;
+  border: 2px solid #2563EB;
+  color: #2563EB;
+}
+
+.demoBtn.nothing {
+  background: white;
+  border: 2px solid #EBE8E0;
+  color: #6B6B6B;
+}
+
+.buttonCardText {
+  font-size: 14px;
+  color: #6B6B6B;
+  line-height: 1.6;
+}
+
+/* Step 3: Check-in */
+.whySection {
+  text-align: center;
+  padding: 24px 0;
+}
+
+.whyLabel {
+  font-size: 28px;
+  font-weight: 500;
+  background: linear-gradient(135deg, #A7F3D0 0%, #93C5FD 50%, #C4B5FD 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 24px;
+}
+
+.whyText {
+  font-size: 18px;
+  color: #6B6B6B;
+  line-height: 1.7;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+/* Step 4 & 5: Finish */
+.finishContent {
+  text-align: center;
+  padding: 24px 0;
+}
+
+.finishDesc {
+  font-size: 18px;
+  color: #6B6B6B;
+  line-height: 1.8;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.finishBtnInline {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  background: white;
+  border: 2px solid #22C55E;
+  color: #22C55E;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  vertical-align: middle;
+  margin: 0 4px;
+}
+
+/* Navigation */
+.navRow {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 32px;
+}
+
+.btnPrimary,
+.btnGhost,
+.btnSuccess {
+  padding: 16px 36px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.btnPrimary {
+  background: #1A1A1A;
+  color: white;
+}
+
+.btnPrimary:hover {
+  background: #000;
+  transform: translateY(-2px);
+}
+
+.btnGhost {
+  background: transparent;
+  color: #6B6B6B;
+}
+
+.btnGhost:hover {
+  color: #1A1A1A;
+}
+
+.btnSuccess {
+  background: #22C55E;
+  color: white;
+}
+
+.btnSuccess:hover {
+  background: #16A34A;
+  transform: translateY(-2px);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .container {
+    padding: 16px;
+  }
+
+  .title {
+    font-size: 36px;
+  }
+
+  .mainCard {
+    padding: 24px 20px;
+  }
+
+  .hierarchyContainer {
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .hierarchyWord {
+    font-size: 36px;
+  }
+
+  .hierarchyArrow {
+    display: none;
+  }
+
+  .buttonsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .whyLabel {
+    font-size: 22px;
+  }
+
+  .whyText,
+  .finishDesc {
+    font-size: 16px;
+  }
+
+  .stepBigTitle {
+    font-size: 36px;
+  }
+}

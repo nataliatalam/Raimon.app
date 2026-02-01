@@ -1,0 +1,542 @@
+/* ActivationFlow Modal Styles */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--cream, #F5F3ED);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  overflow-y: auto;
+}
+
+.container {
+  width: 100%;
+  max-width: 520px;
+}
+
+/* Close button */
+.closeBtn {
+  position: fixed;
+  top: 32px;
+  right: 32px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: white;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: all 0.2s;
+  z-index: 1001;
+}
+
+.closeBtn:hover {
+  transform: scale(1.05);
+}
+
+.closeBtn svg {
+  width: 20px;
+  height: 20px;
+  color: #6B6B6B;
+}
+
+/* Steps */
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: fadeIn 0.4s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Header Text */
+.headerText {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.title {
+  font-size: 40px;
+  font-weight: 300;
+  color: #1A1A1A;
+  line-height: 1.2;
+  margin-bottom: 12px;
+  letter-spacing: -0.02em;
+}
+
+.gradient {
+  background: linear-gradient(135deg, #A7F3D0 0%, #93C5FD 50%, #C4B5FD 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.subtitle {
+  font-size: 16px;
+  color: #6B6B6B;
+  line-height: 1.5;
+}
+
+.subtitleSmall {
+  font-size: 14px;
+  color: #B5B5B5;
+}
+
+/* Card */
+.card {
+  background: white;
+  border-radius: 28px;
+  padding: 40px;
+  width: 100%;
+  text-align: center;
+}
+
+/* Intro */
+.introTitle {
+  font-size: 32px;
+  font-weight: 300;
+  color: #1A1A1A;
+  margin-bottom: 12px;
+  line-height: 1.2;
+}
+
+.introSub {
+  font-size: 16px;
+  color: #6B6B6B;
+  margin-bottom: 32px;
+}
+
+/* Breathing */
+.breathingContainer {
+  padding: 48px 20px;
+}
+
+.breathingPhase {
+  font-size: 32px;
+  font-weight: 300;
+  color: #1A1A1A;
+  margin-bottom: 16px;
+}
+
+.breathingCounter {
+  font-size: 120px;
+  font-weight: 200;
+  background: linear-gradient(135deg, #A7F3D0 0%, #93C5FD 50%, #C4B5FD 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+}
+
+/* Movement */
+.moveDisplay {
+  padding: 40px 20px;
+}
+
+.moveAction {
+  font-size: 28px;
+  font-weight: 400;
+  color: #1A1A1A;
+  margin-bottom: 8px;
+  line-height: 1.3;
+}
+
+.moveDesc {
+  font-size: 16px;
+  color: #6B6B6B;
+  margin-bottom: 32px;
+}
+
+.moveCountdown {
+  font-size: 80px;
+  font-weight: 200;
+  line-height: 1;
+}
+
+.moveCountdown.green { color: #22C55E; }
+.moveCountdown.blue { color: #3B82F6; }
+.moveCountdown.purple { color: #8B5CF6; }
+.moveCountdown.orange { color: #FF6129; }
+
+/* Walk suggestion */
+.walkSuggestion {
+  padding: 32px 20px;
+}
+
+.walkIcon {
+  font-size: 40px;
+  margin-bottom: 16px;
+}
+
+.walkText {
+  font-size: 18px;
+  color: #1A1A1A;
+  margin-bottom: 8px;
+}
+
+.walkHint {
+  font-size: 14px;
+  color: #6B6B6B;
+  margin-bottom: 28px;
+}
+
+/* Water */
+.waterContainer {
+  padding: 40px 20px;
+}
+
+.waterIcon {
+  font-size: 56px;
+  margin-bottom: 20px;
+}
+
+.waterText {
+  font-size: 22px;
+  font-weight: 400;
+  color: #1A1A1A;
+  margin-bottom: 8px;
+}
+
+.waterHint {
+  font-size: 14px;
+  color: #6B6B6B;
+}
+
+/* Chooser - Gradient Pills */
+.chooserPills {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.chooserPill {
+  padding: 20px 28px;
+  background: white;
+  border: 2px solid #EBE8E0;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 500;
+  background-image: linear-gradient(135deg, #A7F3D0 0%, #93C5FD 50%, #C4B5FD 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.chooserPill:hover {
+  border-color: #C4B5FD;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(196, 181, 253, 0.3);
+}
+
+.pickForMe {
+  font-size: 13px;
+  color: #B5B5B5;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-family: inherit;
+}
+
+.pickForMe:hover {
+  color: #6B6B6B;
+}
+
+/* Story/Creativity */
+.storyPrompt {
+  background: #F5F3ED;
+  border-radius: 20px;
+  padding: 24px;
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.storyLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: #B5B5B5;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+}
+
+.storyText {
+  font-size: 17px;
+  color: #1A1A1A;
+  line-height: 1.5;
+  font-style: italic;
+}
+
+.textInput {
+  width: 100%;
+  padding: 20px;
+  background: #F5F3ED;
+  border: none;
+  border-radius: 20px;
+  font-family: inherit;
+  font-size: 15px;
+  color: #1A1A1A;
+  outline: none;
+  resize: none;
+  min-height: 120px;
+  margin-bottom: 16px;
+}
+
+.textInput::placeholder {
+  color: #B5B5B5;
+}
+
+.textInput:focus {
+  box-shadow: inset 0 0 0 2px #1A1A1A;
+}
+
+.raimonResponse {
+  background: #EDE9FE;
+  border-radius: 16px;
+  padding: 20px;
+  text-align: left;
+  margin-bottom: 20px;
+}
+
+.raimonLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: #8B5CF6;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+
+.raimonText {
+  font-size: 15px;
+  color: #1A1A1A;
+  line-height: 1.5;
+  font-style: italic;
+}
+
+/* Journal */
+.journalQuestion {
+  font-size: 22px;
+  font-weight: 400;
+  color: #1A1A1A;
+  line-height: 1.4;
+  margin-bottom: 24px;
+}
+
+.infoBox {
+  background: #DBEAFE;
+  border-radius: 16px;
+  padding: 20px;
+  text-align: left;
+  margin-bottom: 24px;
+}
+
+.infoBox p {
+  font-size: 14px;
+  color: #1A1A1A;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Microtasks */
+.progressDots {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 32px;
+}
+
+.progressDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #EBE8E0;
+  transition: all 0.3s;
+}
+
+.progressDot.active {
+  background: #1A1A1A;
+  transform: scale(1.3);
+}
+
+.progressDot.done {
+  background: #22C55E;
+}
+
+.microtaskStep {
+  font-size: 12px;
+  font-weight: 600;
+  color: #B5B5B5;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 12px;
+}
+
+.microtaskText {
+  font-size: 24px;
+  font-weight: 300;
+  color: #1A1A1A;
+  line-height: 1.3;
+  margin-bottom: 36px;
+}
+
+.microtaskCheck {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: #F5F3ED;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  margin: 0 auto;
+}
+
+.microtaskCheck:hover {
+  background: #DCFCE7;
+  transform: scale(1.05);
+}
+
+.microtaskCheck.done {
+  background: #22C55E;
+}
+
+.microtaskCheck svg {
+  width: 28px;
+  height: 28px;
+  color: #EBE8E0;
+}
+
+.microtaskCheck:hover svg {
+  color: #22C55E;
+}
+
+.microtaskCheck.done svg {
+  color: white;
+}
+
+/* Buttons */
+.btnPrimary {
+  padding: 16px 32px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  background: #1A1A1A;
+  color: white;
+}
+
+.btnPrimary:hover {
+  background: #000;
+  transform: translateY(-2px);
+}
+
+.btnGhost {
+  padding: 14px 20px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  background: transparent;
+  color: #6B6B6B;
+}
+
+.btnGhost:hover {
+  color: #1A1A1A;
+}
+
+.btnSuccess {
+  padding: 16px 32px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  background: #22C55E;
+  color: white;
+}
+
+.btnSuccess:hover {
+  background: #16A34A;
+}
+
+.btnRow {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 28px;
+}
+
+.btnCenter {
+  display: flex;
+  justify-content: center;
+}
+
+/* Success emoji */
+.successEmoji {
+  font-size: 56px;
+  margin-bottom: 24px;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .overlay {
+    padding: 24px;
+  }
+
+  .title {
+    font-size: 32px;
+  }
+
+  .card {
+    padding: 32px 24px;
+  }
+
+  .closeBtn {
+    top: 20px;
+    right: 20px;
+  }
+
+  .breathingCounter {
+    font-size: 80px;
+  }
+
+  .moveCountdown {
+    font-size: 56px;
+  }
+
+  .introTitle {
+    font-size: 28px;
+  }
+}

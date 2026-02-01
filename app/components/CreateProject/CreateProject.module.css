@@ -1,0 +1,507 @@
+.page {
+  width: 100%;
+  min-height: 100%;
+  background: #fff;
+  padding: 40px;
+  box-sizing: border-box;
+  border-radius: 20px;
+}
+
+/* Hero */
+.hero {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.errorBanner {
+  margin-bottom: 32px;
+  padding: 12px 18px;
+  border-radius: 16px;
+  background: rgba(232, 74, 138, 0.08);
+  border: 1px solid rgba(232, 74, 138, 0.3);
+  color: #c61f57;
+  font-weight: 500;
+  text-align: center;
+}
+
+.heroTitle {
+  font-size: 52px;
+  font-weight: 300;
+  color: #1A1A1A;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin-bottom: 8px;
+}
+
+.gradient {
+  background: linear-gradient(135deg, #A7F3D0 0%, #93C5FD 50%, #C4B5FD 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Section Header */
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 28px;
+  margin-top: 32px;
+}
+
+.sectionNumber {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #1A1A1A;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sectionTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6B6B6B;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Project Name */
+.nameRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.nameLabel {
+  font-size: 24px;
+  font-weight: 300;
+  color: #1A1A1A;
+  white-space: nowrap;
+}
+
+.nameInputWrapper {
+  flex: 1;
+  padding: 14px 22px;
+  background: #F5F3ED;
+  border: 2px solid transparent;
+  border-radius: 16px;
+  transition: all 0.2s;
+}
+
+.nameInputWrapper:focus-within {
+  background: #fff;
+  border-color: #1A1A1A;
+}
+
+.nameInputError {
+  border-color: #FF6129 !important;
+}
+
+.nameInput {
+  width: 100%;
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  font-weight: 500;
+  color: #1A1A1A;
+  outline: none;
+}
+
+.nameInput::placeholder {
+  color: #B5B5B5;
+  font-weight: 400;
+}
+
+/* Type */
+.typeRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+
+.typeLabel {
+  font-size: 16px;
+  color: #6B6B6B;
+}
+
+.typeToggle {
+  display: flex;
+  background: #F5F3ED;
+  border-radius: 999px;
+  padding: 4px;
+}
+
+.typeBtn {
+  padding: 10px 20px;
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #6B6B6B;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.selected {
+  background: #fff;
+  color: #1A1A1A;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+/* Fields */
+.fieldGroup {
+  margin-bottom: 24px;
+}
+
+.fieldLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: #B5B5B5;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 12px;
+  display: block;
+}
+
+.textInput {
+  width: 100%;
+  padding: 16px 20px;
+  background: #F5F3ED;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  font-size: 15px;
+  color: #1A1A1A;
+  outline: none;
+  resize: none;
+  line-height: 1.6;
+  transition: all 0.2s;
+  box-sizing: border-box;
+}
+
+.textInput:focus {
+  background: #fff;
+  border-color: #1A1A1A;
+}
+
+.textInput::placeholder {
+  color: #B5B5B5;
+}
+
+/* Tasks */
+.tasksList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.taskRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #F5F3ED;
+  border-radius: 12px;
+}
+
+.taskCheck {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 2px solid #EBE8E0;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.taskInput {
+  flex: 1;
+  background: transparent;
+  border: none;
+  font-size: 15px;
+  color: #1A1A1A;
+  outline: none;
+}
+
+.taskInput::placeholder {
+  color: #B5B5B5;
+}
+
+.addTaskBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: transparent;
+  border: 2px dashed #EBE8E0;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #B5B5B5;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.addTaskBtn:hover {
+  border-color: #6B6B6B;
+  color: #6B6B6B;
+}
+
+.plus {
+  font-weight: 800;
+  font-size: 16px;
+}
+
+/* Details */
+.detailsList {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.detailRow {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #B5B5B5;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.timelineOptions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.timelineBtn {
+  flex: 1;
+  padding: 14px 12px;
+  background: #F5F3ED;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #6B6B6B;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+  min-width: 120px;
+}
+
+.timelineBtn:hover {
+  border-color: #EBE8E0;
+}
+
+.deadlineWrapper {
+  margin-top: 12px;
+}
+
+.deadlineLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: #B5B5B5;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.deadlineRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.deadlineSelect {
+  padding: 12px 16px;
+  background: #F5F3ED;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #6B6B6B;
+  cursor: pointer;
+  transition: all 0.2s;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6B6B' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+
+.deadlineSelect:hover {
+  border-color: #EBE8E0;
+}
+
+.deadlineSelect:focus {
+  outline: none;
+  border-color: #1A1A1A;
+}
+
+.deadlineClear {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  font-size: 12px;
+  color: #B5B5B5;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.deadlineClear:hover {
+  background: #F5F3ED;
+  color: #1A1A1A;
+}
+
+/* Pills */
+.pillsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pill {
+  padding: 12px 18px;
+  background: #F5F3ED;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #6B6B6B;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pill:hover {
+  border-color: #EBE8E0;
+}
+
+.selectedDark {
+  background: #1A1A1A;
+  color: #fff;
+  border-color: #1A1A1A;
+}
+
+/* Drop zone */
+.dropZone {
+  border: 2px dashed #EBE8E0;
+  border-radius: 16px;
+  padding: 28px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: transparent;
+}
+
+.dropZone:hover {
+  border-color: #6B6B6B;
+  background: #F5F3ED;
+}
+
+.dropZone p {
+  font-size: 14px;
+  color: #6B6B6B;
+}
+
+.dropZone span {
+  color: #1A1A1A;
+  font-weight: 600;
+}
+
+.dropIcon {
+  font-size: 22px;
+  opacity: 0.5;
+  margin-bottom: 8px;
+}
+
+.fileInput {
+  display: none;
+}
+
+.attachedFiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.filePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #F5F3ED;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1A1A1A;
+}
+
+.filePill button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: 0.4;
+  font-size: 14px;
+}
+
+.filePill button:hover {
+  opacity: 1;
+}
+
+/* Footer */
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid #F5F3ED;
+}
+
+.btnPrimary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px 32px;
+  background: #FF6129;
+  border: none;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btnPrimary:hover {
+  transform: translateY(-2px);
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+  .page { padding: 24px; }
+  .heroTitle { font-size: 36px; }
+  .nameRow { flex-direction: column; align-items: stretch; gap: 10px; }
+  .nameLabel { font-size: 20px; }
+  .timelineBtn { width: calc(50% - 4px); min-width: auto; flex: none; }
+  .btnPrimary { width: 100%; }
+}

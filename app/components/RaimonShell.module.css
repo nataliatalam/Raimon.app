@@ -1,0 +1,492 @@
+:root {
+  --orange: #ff8c42;
+  --orange-bright: #ff6b1a;
+  --pink: #e84a8a;
+  --gradient: linear-gradient(135deg, #ff8c42 0%, #ff6b1a 50%, #e84a8a 100%);
+  --orange-light: rgba(255, 140, 66, 0.15);
+
+  --bg: #000000;
+  --content-box: #ffffff;
+
+  --black: #000000;
+
+  --text-on-dark: #ffffff;
+  --text-muted-dark: rgba(255, 255, 255, 0.55);
+
+  --sidebar-w: 250px;
+  --sidebar-collapsed-w: 76px;
+  --font: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Global-ish reset for this shell (belongs in CSS, NOT TSX) */
+:global(html),
+:global(body) {
+  height: 100%;
+}
+
+:global(body) {
+  margin: 0;
+  font-family: var(--font);
+  background: var(--bg);
+
+  /* ✅ FIX: allow page scrolling; only lock X if needed */
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* ✅ FIX: don’t hard-lock the app to 100vh + hidden overflow.
+   Let the app stretch naturally and let the inner content area own scrolling. */
+.app {
+  min-height: 100vh;
+  display: flex;
+  overflow: visible;
+}
+
+.shellLoading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text-on-dark);
+  font-family: var(--font);
+  font-size: 18px;
+}
+
+/* ===== SIDEBAR ===== */
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: var(--sidebar-w);
+  height: 100vh;
+  background: var(--bg);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+
+  /* keep sidebar self-contained */
+  overflow: hidden;
+
+  padding: 24px 20px;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebarCollapsed {
+  width: var(--sidebar-collapsed-w);
+  padding: 24px 14px;
+}
+
+/* Logo */
+.logoWrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+.logoImg {
+  width: 140px;
+  height: auto;
+  max-width: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.sidebarCollapsed .logoImg {
+  width: 48px;
+  height: auto;
+}
+
+/* Nav */
+.nav {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  margin-bottom: 6px;
+  transition: all 0.25s ease;
+  background: transparent;
+  color: var(--text-muted-dark);
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  position: relative;
+}
+
+.navItem:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-on-dark);
+}
+
+.navItemActive {
+  background: var(--gradient);
+  color: #fff;
+  font-weight: 600;
+}
+
+.navItem svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  stroke: currentColor;
+}
+
+.navItem span {
+  flex: 1;
+  opacity: 1;
+  transition: opacity 0.2s ease, width 0.3s ease;
+}
+
+.sidebarCollapsed .navItem {
+  padding: 12px;
+  justify-content: center;
+  gap: 0;
+}
+
+.sidebarCollapsed .navItem span {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+}
+
+/* Tooltip in collapsed state */
+.navItem::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--black);
+  color: var(--text-on-dark);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sidebarCollapsed .navItem:hover::after {
+  opacity: 1;
+}
+
+/* Collapse toggle */
+.sidebarToggle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: transparent;
+  border: 2px solid var(--orange);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 16px auto 0 auto;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.sidebarToggle svg {
+  width: 14px;
+  height: 14px;
+  stroke: var(--orange);
+}
+
+.sidebarToggle:hover {
+  background: var(--orange);
+}
+
+.sidebarToggle:hover svg {
+  stroke: var(--black);
+}
+
+.chevRot {
+  transform: rotate(180deg);
+}
+
+/* ===== MAIN ===== */
+/* ✅ FIX: don’t hard-lock mainContent to 100vh + overflow hidden.
+   Let contentArea/contentScroll own the scroll. */
+.mainContent {
+  min-height: 100vh;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+
+  margin-left: var(--sidebar-w);
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  position: relative;
+  overflow: visible;
+}
+
+.mainCollapsed {
+  margin-left: var(--sidebar-collapsed-w);
+}
+
+/* Header can stay pinned inside the shell */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  background: var(--bg);
+}
+
+.headerUser {
+  display: flex;
+  flex-direction: column;
+  color: var(--text-muted-dark);
+  font-size: 14px;
+}
+
+.headerGreeting {
+  font-weight: 500;
+  color: var(--text-on-dark);
+}
+
+.headerLogout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-muted-dark);
+  transition: all 0.2s ease;
+}
+
+.headerLogout svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+}
+
+.headerLogout:hover {
+  border-color: var(--orange);
+  color: var(--orange);
+}
+
+.headerLogout:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ✅ FIX: give content area a real scroll owner.
+   It fills remaining viewport space under header and scrolls. */
+.contentArea {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+
+  /* ✅ this is the scroll container */
+  overflow: hidden;
+}
+
+.contentInner {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: var(--content-box);
+  border-radius: 102px 0 0 0;
+
+  /* ✅ keep rounded corner “mask” without killing page scroll */
+  overflow: hidden;
+
+  padding: 0;
+}
+
+/* ✅ scroll happens here */
+.contentScroll {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 32px;
+
+  /* nicer scrolling on iOS too */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ✅ FIX: don’t set both overflow-y:auto AND overflow:hidden (that cancels scroll) */
+.contentScrollFlush {
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ===== MOBILE ===== */
+.mobileMenuBtn {
+  display: none;
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--black);
+  border: 2px solid var(--orange);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+}
+
+.mobileMenuBtn svg {
+  width: 20px;
+  height: 20px;
+  stroke: var(--orange);
+}
+
+.mobileCloseBtn {
+  display: none;
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.mobileCloseBtn svg {
+  width: 20px;
+  height: 20px;
+  stroke: var(--text-muted-dark);
+}
+
+.mobileOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 35;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.mobileOverlayActive {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sidebarMobileOpen {
+  transform: translateX(0) !important;
+}
+
+@media (max-width: 768px) {
+  .mobileMenuBtn {
+    display: flex;
+  }
+  .mobileCloseBtn {
+    display: flex;
+  }
+  .mobileOverlay {
+    display: block;
+  }
+
+  .sidebar {
+    transform: translateX(-100%);
+    width: var(--sidebar-w);
+    z-index: 45;
+  }
+
+  .sidebarCollapsed {
+    width: var(--sidebar-w);
+    padding: 24px 20px;
+  }
+
+  .sidebarCollapsed .navItem {
+    padding: 12px 18px;
+    justify-content: flex-start;
+    gap: 12px;
+  }
+
+  .sidebarCollapsed .navItem span {
+    opacity: 1;
+    width: auto;
+  }
+
+  .sidebarToggle {
+    display: none;
+  }
+
+  .mainContent {
+    margin-left: 0;
+  }
+  .mainCollapsed {
+    margin-left: 0;
+  }
+
+  .contentInner {
+    padding: 0;
+    min-height: 0;
+    border-radius: 20px 0 0 0;
+  }
+
+  .contentScroll {
+    padding: 24px;
+  }
+
+  .contentScrollFlush {
+    padding: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .contentInner {
+    padding: 0px;
+    border-radius: 16px 0 0 0;
+  }
+
+  .contentScroll {
+    padding: 20px;
+  }
+
+  .headerLogout span {
+    display: none;
+  }
+
+  .headerLogout {
+    padding: 10px;
+    border-radius: 50%;
+  }
+}
+
+.orangeCircle {
+  display: none;
+}
