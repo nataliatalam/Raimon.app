@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import styles from './TasksPage.module.css';
 import DaySummary, { DaySummaryData, Thought } from './DaySummary';
+import ProjectFilter from './ProjectFilter';
 
 export type Task = {
   id?: string;
@@ -40,19 +41,19 @@ type Props = {
 export const DEFAULT_TASKS: Task[] = [
   {
     title: 'Review marketing\nbudget proposal',
-    desc: "Go through the Q1 marketing budget spreadsheet and add comments for tomorrow’s meeting.",
+    desc: "Go through the Q1 marketing budget spreadsheet and add comments for tomorrow's meeting.",
     project: 'Q1 Planning',
     duration: '25 min',
   },
   {
     title: 'Update client\npresentation',
-    desc: "Add the new metrics slides and update the timeline section before Friday’s call.",
+    desc: "Add the new metrics slides and update the timeline section before Friday's call.",
     project: 'Client Work',
     duration: '40 min',
   },
   {
     title: 'Write weekly\nreport summary',
-    desc: "Compile this week’s highlights and blockers for the team standup.",
+    desc: "Compile this week's highlights and blockers for the team standup.",
     project: 'Team Updates',
     duration: '15 min',
   },
@@ -77,8 +78,21 @@ export default function TasksPage({
   const [idx, setIdx] = useState(0);
   const [finished, setFinished] = useState(false);
 
-  const safeTasks = tasks;
-  const task = useMemo(() => (safeTasks.length ? safeTasks[idx % safeTasks.length] : null), [safeTasks, idx]);
+  // -- Filter State --
+  const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
+
+  // Filter Logic
+  const filteredTasks = useMemo(() => {
+    if (selectedProjects.length === 0) return tasks;
+    return tasks.filter(t => selectedProjects.includes(t.project));
+  }, [tasks, selectedProjects]);
+
+  const task = useMemo(() => (filteredTasks.length ? filteredTasks[idx % filteredTasks.length] : null), [filteredTasks, idx]);
+
+  // Reset index if filtered list shrinks below current index to avoid jumping too wildly
+  useEffect(() => {
+    setIdx(0);
+  }, [selectedProjects]);
 
   const doCb = onDo ?? onStartTask;
   const finishCb = onFinish ?? onFinishDay;
@@ -90,7 +104,7 @@ export default function TasksPage({
   function handleDo() {
     if (!task) return;
     if (doCb) doCb(task);
-    else alert(`Starting: ${task.title.replaceAll('\n', ' ')}`);
+    else alert(`Starting: ${task.title.replace(/\n/g, ' ')}`);
   }
 
   function handleFinish() {
@@ -115,76 +129,122 @@ export default function TasksPage({
   if (loading) {
     return (
       <div className={styles.page}>
-        <div className={styles.loadingState}>Loading your tasks…</div>
-      </div>
-    );
-  }
-
-  if (!task) {
-    return (
-      <div className={styles.page}>
-        <div className={styles.emptyState}>
-          <p>{emptyMessage}</p>
-        </div>
+        <div className={styles.loadingState}>Loading your tasks...</div>
       </div>
     );
   }
 
   return (
     <div className={styles.page}>
+      {/* Header */}
       <header className={styles.header}>
         <div className={styles.headerLeft}>
-          <span className={styles.pageLabel}>Up next</span>
-          <h1 className={styles.pageTitle}>Your Tasks</h1>
+          <span className={styles.filterLabel}>Tasks from</span>
+          <ProjectFilter
+            allTasks={tasks}
+            selectedProjects={selectedProjects}
+            onChange={setSelectedProjects}
+          />
         </div>
 
         {errorMessage && <div className={styles.errorBanner}>{errorMessage}</div>}
 
         <button
-          className={[styles.finishBtn, finished ? styles.finishBtnDone : ''].join(' ')}
+          className={`${styles.finishBtn} ${finished ? styles.finishBtnDone : ''}`}
           onClick={handleFinish}
           type="button"
         >
-          {finished ? 'Done for today!' : 'Finish for today'}
-          <span className={styles.finishArrow}>→</span>
+          <span>Done for today</span>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={styles.finishArrow}
+          >
+            <path d="M5 12h14M12 5l7 7-7 7"/>
+          </svg>
         </button>
       </header>
 
+      {/* Content Area */}
       <main className={styles.content}>
-        <div className={styles.taskContainer}>
-          <div className={styles.projectPill}>
-            <span className={styles.projectDot} />
-            <span className={styles.projectName}>{task.project}</span>
+        {!task ? (
+          <div className={styles.emptyState}>
+            <div className={styles.emptyEmoji}>🎉</div>
+            <p className={styles.emptyText}>
+              {filteredTasks.length === 0 && tasks.length > 0
+                ? "No tasks match your current project filter."
+                : emptyMessage}
+            </p>
+            {filteredTasks.length === 0 && tasks.length > 0 && (
+               <button
+                onClick={() => setSelectedProjects([])}
+                className={styles.clearFiltersBtn}
+               >
+                 Clear filters
+               </button>
+            )}
           </div>
+        ) : (
+          <div className={styles.taskGrid}>
+            {/* Left Column: Task Details */}
+            <div className={styles.taskDetails}>
+              {/* Project & Duration Row */}
+              <div className={styles.taskMetaRow}>
+                <div className={styles.projectPill}>
+                  <span className={styles.projectDot} />
+                  <span className={styles.projectName}>{task.project}</span>
+                </div>
 
-          <h2 className={styles.taskTitle}>{task.title}</h2>
+                <div className={styles.durationDisplay}>
+                  <svg xmlns="http://www.w3.org/2000/svg" className={styles.clockIcon} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>{task.duration}</span>
+                </div>
+              </div>
 
-          <p className={styles.taskDesc}>{task.desc}</p>
+              {/* Title */}
+              <h2 className={styles.taskTitle}>{task.title}</h2>
 
-          <div className={styles.taskMeta}>
-            <div className={styles.metaPill}>
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span>{task.duration}</span>
+              {/* Description */}
+              <p className={styles.taskDesc}>{task.desc}</p>
+            </div>
+
+            {/* Divider (Visible on Desktop) */}
+            <div className={styles.divider} />
+
+            {/* Right Column: Actions */}
+            <div className={styles.actionsColumn}>
+              <button
+                className={styles.doBtn}
+                onClick={handleDo}
+                type="button"
+              >
+                <span>Do it</span>
+                <span className={styles.arrowCircle}>
+                  <svg xmlns="http://www.w3.org/2000/svg" className={styles.arrowIcon} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                  </svg>
+                </span>
+              </button>
+
+              <button
+                className={styles.skipBtn}
+                onClick={handleSkip}
+                type="button"
+              >
+                Skip task
+              </button>
             </div>
           </div>
-
-          <div className={styles.actions}>
-            <button className={styles.doBtn} onClick={handleDo} type="button">
-              <span>Do it</span>
-              <span className={styles.arrowCircle} aria-hidden="true">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                </svg>
-              </span>
-            </button>
-
-            <button className={styles.skipBtn} onClick={handleSkip} type="button">
-              Skip this task
-            </button>
-          </div>
-        </div>
+        )}
       </main>
     </div>
   );

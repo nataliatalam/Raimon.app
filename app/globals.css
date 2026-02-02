@@ -1,4 +1,10 @@
 /* app/globals.css */
+@import "tailwindcss";
+
+@theme {
+  --color-orange: #ff6129;
+  --color-cream: #f5f3ed;
+}
 
 /* ===== DESIGN SYSTEM RAIMON - Naranja/Rosa ===== */
 :root {
