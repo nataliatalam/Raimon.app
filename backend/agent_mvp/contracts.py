@@ -99,15 +99,26 @@ class ActiveDo(BaseModel):
 
 class GraphState(BaseModel):
     """LangGraph state machine state."""
+    model_config = {"arbitrary_types_allowed": True}
+
     user_id: str
     current_event: Optional[Any] = None
     candidates: List[TaskCandidate] = Field(default_factory=list)
     constraints: Optional[SelectionConstraints] = None
-    active_do: Optional[ActiveDo] = None
+    active_do: Optional[Any] = None  # Can be dict or ActiveDo
     coach_message: Optional[CoachOutput] = None
     error: Optional[str] = None
     opik_trace_id: Optional[str] = None
     success: bool = Field(default=True)
+
+    # Additional fields for orchestrator handlers
+    context_resumption: Optional[Any] = None
+    selection_constraints: Optional[Any] = None
+    user_profile: Optional[Any] = None
+    motivation_message: Optional[Any] = None
+    stuck_analysis: Optional[Any] = None
+    microtasks: Optional[List[Any]] = None
+    day_insights: Optional[List[Any]] = None
 
 
 class AgentMVPResponse(BaseModel):
@@ -391,8 +402,9 @@ class OrchestratorEvent(BaseModel):
 class AppOpenEvent(BaseModel):
     """App open event."""
     user_id: str
-    timestamp: str
+    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
     device: Optional[str] = None
+    current_time: Optional[datetime] = Field(default_factory=datetime.utcnow)
 
 
 class CheckInSubmittedEvent(BaseModel):
@@ -424,6 +436,7 @@ class DoNextEvent(BaseModel):
     """Do next event."""
     user_id: str
     timestamp: str
+    context: str = Field(default="task_selection", description="Context for task selection")
 
 
 class DoActionEvent(BaseModel):
@@ -431,7 +444,9 @@ class DoActionEvent(BaseModel):
     user_id: str
     action: str  # "start", "complete", "stuck", "pause"
     task_id: Optional[str] = None
-    timestamp: str
+    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    current_session: Optional[Dict[str, Any]] = None  # For stuck detection
+    time_stuck: Optional[int] = None  # Minutes stuck on task
 
 
 class DayEndEvent(BaseModel):

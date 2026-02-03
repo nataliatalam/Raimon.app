@@ -17,6 +17,9 @@ from models.task import (
 )
 from core.supabase import get_supabase_admin
 from core.security import get_current_user
+from agent_mvp.contracts import DoActionEvent
+from agent_mvp.orchestrator import process_agent_event
+from opik import track
 import logging
 
 logger = logging.getLogger(__name__)
@@ -450,6 +453,7 @@ async def update_task_priority(
 
 # Task Action Endpoints
 @router.post("/api/tasks/{task_id}/start")
+@track(name="task_start_endpoint")
 async def start_task(
     task_id: str,
     request: TaskStartRequest,
@@ -513,6 +517,18 @@ async def start_task(
             .execute()
         )
 
+        # Trigger DO_ACTION agent event for task start
+        try:
+            do_action_event = DoActionEvent(
+                user_id=current_user["id"],
+                action="start",
+                task_id=task_id,
+            )
+            agent_result = process_agent_event(do_action_event)
+            logger.info(f"⚡ DO_ACTION(start) event processed for task {task_id}: {agent_result.get('success')}")
+        except Exception as agent_err:
+            logger.warning(f"DO_ACTION(start) agent event failed (non-blocking): {agent_err}")
+
         return {
             "success": True,
             "data": {
@@ -531,6 +547,7 @@ async def start_task(
 
 
 @router.post("/api/tasks/{task_id}/pause")
+@track(name="task_pause_endpoint")
 async def pause_task(
     task_id: str,
     request: TaskPauseRequest,
@@ -565,6 +582,18 @@ async def pause_task(
             .execute()
         )
 
+        # Trigger DO_ACTION agent event for task pause
+        try:
+            do_action_event = DoActionEvent(
+                user_id=current_user["id"],
+                action="pause",
+                task_id=task_id,
+            )
+            agent_result = process_agent_event(do_action_event)
+            logger.info(f"⚡ DO_ACTION(pause) event processed for task {task_id}: {agent_result.get('success')}")
+        except Exception as agent_err:
+            logger.warning(f"DO_ACTION(pause) agent event failed (non-blocking): {agent_err}")
+
         return {
             "success": True,
             "data": {
@@ -583,12 +612,14 @@ async def pause_task(
 
 
 @router.post("/api/tasks/{task_id}/complete")
+@track(name="task_complete_endpoint")
 async def complete_task(
     task_id: str,
     request: TaskCompleteRequest,
     current_user: dict = Depends(get_current_user),
 ):
     """Mark a task as complete."""
+    logger.info(f"📥 /complete endpoint hit for task {task_id}")
     try:
         task = await get_user_task(task_id, current_user["id"])
 
@@ -608,13 +639,13 @@ async def complete_task(
             supabase.table("work_sessions")
             .select("start_time, end_time")
             .eq("task_id", task_id)
-            .not_.is_("end_time", "null")
             .execute()
         )
 
         total_duration = 0
         for s in all_sessions.data or []:
-            if s["start_time"] and s["end_time"]:
+            # Only count completed sessions (those with both start and end time)
+            if s.get("start_time") and s.get("end_time"):
                 start = datetime.fromisoformat(s["start_time"].replace("Z", "+00:00"))
                 end = datetime.fromisoformat(s["end_time"].replace("Z", "+00:00"))
                 total_duration += int((end - start).total_seconds() / 60)
@@ -634,12 +665,29 @@ async def complete_task(
             .execute()
         )
 
+        # Trigger DO_ACTION agent event for task completion
+        agent_motivation = None
+        try:
+            do_action_event = DoActionEvent(
+                user_id=current_user["id"],
+                action="complete",
+                task_id=task_id,
+            )
+            agent_result = process_agent_event(do_action_event)
+            logger.info(f"⚡ DO_ACTION(complete) event processed for task {task_id}: {agent_result.get('success')}")
+            # Get motivation message from agent result
+            if agent_result.get('success') and agent_result.get('data'):
+                agent_motivation = agent_result['data'].get('motivation_message')
+        except Exception as agent_err:
+            logger.warning(f"DO_ACTION(complete) agent event failed (non-blocking): {agent_err}")
+
         return {
             "success": True,
             "data": {
                 "task": task_response.data[0] if task_response.data else None,
                 "session": session,
                 "total_duration": actual_duration,
+                "agent_motivation": agent_motivation,
             },
         }
     except HTTPException:
@@ -653,6 +701,7 @@ async def complete_task(
 
 
 @router.post("/api/tasks/{task_id}/break")
+@track(name="task_break_endpoint")
 async def take_break(
     task_id: str,
     request: TaskBreakRequest,
@@ -712,6 +761,7 @@ async def take_break(
 
 
 @router.post("/api/tasks/{task_id}/intervention")
+@track(name="task_intervention_endpoint")
 async def report_intervention(
     task_id: str,
     request: TaskInterventionRequest,
@@ -749,12 +799,34 @@ async def report_intervention(
         # Generate suggestions based on intervention type
         suggestions = get_intervention_suggestions(request.intervention_type)
 
+        # Trigger DO_ACTION agent event for stuck/intervention
+        agent_microtasks = None
+        if request.intervention_type == "stuck":
+            try:
+                do_action_event = DoActionEvent(
+                    user_id=current_user["id"],
+                    action="stuck",
+                    task_id=task_id,
+                    current_session=session,
+                    time_stuck=request.time_stuck if hasattr(request, 'time_stuck') else None,
+                )
+                agent_result = process_agent_event(do_action_event)
+                logger.info(f"⚡ DO_ACTION(stuck) event processed for task {task_id}: {agent_result.get('success')}")
+                # Get microtasks from agent result
+                if agent_result.get('success') and agent_result.get('data'):
+                    agent_microtasks = agent_result['data'].get('microtasks')
+                    if agent_microtasks:
+                        suggestions = agent_microtasks  # Use agent-generated suggestions
+            except Exception as agent_err:
+                logger.warning(f"DO_ACTION(stuck) agent event failed (non-blocking): {agent_err}")
+
         return {
             "success": True,
             "data": {
                 "intervention_type": request.intervention_type,
                 "recorded": True,
                 "suggestions": suggestions,
+                "agent_microtasks": agent_microtasks,
             },
         }
     except HTTPException:

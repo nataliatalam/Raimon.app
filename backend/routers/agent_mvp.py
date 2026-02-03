@@ -18,13 +18,16 @@ from agent_mvp.contracts import (
     SelectionConstraints,
     AgentMVPResponse,
     AppOpenRequest,
+    AppOpenEvent,
     CheckInSubmittedEvent,
+    DoNextEvent,
     DoActionEvent,
     DayEndEvent,
     ProjectInsightRequest,
 )
 from agent_mvp.graph import run_agent_mvp
 from agent_mvp.orchestrator import process_agent_event
+from agent_mvp.events import log_agent_event
 from agent_mvp.project_insight_agent import generate_project_insights
 from core.security import get_current_user
 from opik import track
@@ -85,6 +88,18 @@ async def next_do(
     logger.info(f"📨 /next-do request from user {user_id}")
 
     try:
+        # Log DO_NEXT event through orchestrator for tracking
+        try:
+            do_next_event = DoNextEvent(
+                user_id=user_id,
+                timestamp=datetime.utcnow().isoformat(),
+                context="task_selection",
+            )
+            log_agent_event(user_id, "DO_NEXT", {"context": "task_selection"})
+            logger.info(f"🎯 DO_NEXT event logged for user {user_id}")
+        except Exception as event_err:
+            logger.warning(f"DO_NEXT event logging failed (non-blocking): {event_err}")
+
         # Run orchestrator
         result = await run_agent_mvp(
             user_id=user_id,

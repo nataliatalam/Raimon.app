@@ -150,16 +150,28 @@ export default function ProjectDetailPage() {
         recurring: task.recurring,
       }));
 
-      await apiFetch(`/api/projects/${projectId}`, {
-        method: 'PUT',
-        body: {
-          name: updatedProject.name,
-          description: updatedProject.description,
-          notes: updatedProject.notes,
-          tasks: tasksForBackend,
-        },
-      });
-      setProject(updatedProject);
+      const response = await apiFetch<ApiSuccessResponse<{ project: ProjectApiResponse }>>(
+        `/api/projects/${projectId}`,
+        {
+          method: 'PUT',
+          body: {
+            name: updatedProject.name,
+            description: updatedProject.description,
+            notes: updatedProject.notes,
+            tasks: tasksForBackend,
+          },
+        }
+      );
+
+      // Update local state with server response (includes auto-completed status)
+      if (response.data?.project) {
+        setProject({
+          ...updatedProject,
+          status: response.data.project.status === 'archived' ? 'paused' : response.data.project.status,
+        });
+      } else {
+        setProject(updatedProject);
+      }
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);

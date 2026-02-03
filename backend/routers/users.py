@@ -11,7 +11,10 @@ from models.user import (
 )
 from core.supabase import get_supabase, get_supabase_admin
 from core.security import get_current_user
+from agent_mvp.contracts import CheckInSubmittedEvent
+from agent_mvp.orchestrator import process_agent_event
 from datetime import datetime, timezone, date
+from opik import track
 import logging
 
 logger = logging.getLogger(__name__)
@@ -220,6 +223,7 @@ async def get_current_state(current_user: dict = Depends(get_current_user)):
 
 
 @router.post("/state/check-in")
+@track(name="daily_check_in_endpoint")
 async def daily_check_in(
     request: CheckInRequest,
     current_user: dict = Depends(get_current_user),
@@ -261,6 +265,23 @@ async def daily_check_in(
             # Create new check-in
             response = supabase.table("daily_check_ins").insert(check_in_data).execute()
 
+        # Trigger CHECKIN_SUBMITTED agent event
+        agent_constraints = None
+        try:
+            checkin_event = CheckInSubmittedEvent(
+                user_id=current_user["id"],
+                energy_level=request.energy_level,
+                mood=request.mood,
+                focus_areas=request.focus_areas or [],
+            )
+            agent_result = process_agent_event(checkin_event)
+            logger.info(f"📝 CHECKIN_SUBMITTED event processed for user {current_user['id']}: {agent_result.get('success')}")
+            # Get constraints from agent result
+            if agent_result.get('success') and agent_result.get('data'):
+                agent_constraints = agent_result['data'].get('selection_constraints')
+        except Exception as agent_err:
+            logger.warning(f"CHECKIN_SUBMITTED agent event failed (non-blocking): {agent_err}")
+
         # Generate greeting based on energy
         greeting = "Good morning!"
         if request.energy_level >= 7:
@@ -280,6 +301,7 @@ async def daily_check_in(
                         "deep_work_blocks" if request.energy_level >= 7 else "light_tasks"
                     ),
                 },
+                "agent_constraints": agent_constraints,
             },
         }
     except HTTPException:

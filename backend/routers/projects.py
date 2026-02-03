@@ -15,6 +15,7 @@ from models.project import (
 )
 from core.supabase import get_supabase, get_supabase_admin
 from core.security import get_current_user
+from opik import track
 import logging
 
 logger = logging.getLogger(__name__)
@@ -137,6 +138,7 @@ async def list_projects(
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
+@track(name="project_create_endpoint")
 async def create_project(
     request: ProjectCreate,
     current_user: dict = Depends(get_current_user),
@@ -324,6 +326,7 @@ async def get_project(
 
 
 @router.put("/{project_id}")
+@track(name="project_update_endpoint")
 async def update_project(
     project_id: UUID,
     request: ProjectUpdate,
@@ -442,13 +445,49 @@ async def update_project(
                 tasks_to_delete = existing_task_ids - request_task_ids
                 for task_id in tasks_to_delete:
                     supabase.table("tasks").delete().eq("id", task_id).execute()
+
+                # Auto-complete project if all tasks are completed
+                if request.tasks:
+                    all_completed = all(task.completed for task in request.tasks)
+                    has_tasks = len(request.tasks) > 0
+
+                    if has_tasks and all_completed:
+                        # Set project status to completed
+                        supabase.table("projects").update(
+                            {"status": "completed"}
+                        ).eq("id", str(project_id)).execute()
+                        logger.info(f"Project {project_id} auto-completed - all tasks done")
+                    elif has_tasks and not all_completed:
+                        # If project was completed but now has incomplete tasks, reactivate it
+                        current_project = (
+                            supabase.table("projects")
+                            .select("status")
+                            .eq("id", str(project_id))
+                            .single()
+                            .execute()
+                        )
+                        if current_project.data and current_project.data.get("status") == "completed":
+                            supabase.table("projects").update(
+                                {"status": "active"}
+                            ).eq("id", str(project_id)).execute()
+                            logger.info(f"Project {project_id} reactivated - has incomplete tasks")
+
             except Exception as tasks_err:
                 logger.error(f"Failed to save tasks: {tasks_err}", exc_info=True)
                 # Continue without failing - but log the full error
 
+        # Fetch the updated project to return current state (including auto-completed status)
+        updated_project = (
+            supabase.table("projects")
+            .select("*")
+            .eq("id", str(project_id))
+            .single()
+            .execute()
+        )
+
         return {
             "success": True,
-            "data": {"project": project_result},
+            "data": {"project": updated_project.data if updated_project.data else project_result},
         }
     except HTTPException:
         raise

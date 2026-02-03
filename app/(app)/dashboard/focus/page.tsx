@@ -109,7 +109,10 @@ export default function FocusPage() {
   }
 
   async function handleDone() {
-    if (!task?.id) return;
+    if (!task?.id) {
+      setError('No task to complete. Please start a task first.');
+      return;
+    }
     setError('');
     try {
       await apiFetch(`/api/tasks/${task.id}/complete`, {
@@ -119,8 +122,9 @@ export default function FocusPage() {
       clearActiveTask();
       router.push('/dashboard');
     } catch (err) {
+      console.error('Failed to complete task:', err);
       if (err instanceof ApiError) setError(err.message);
-      else setError('Failed to complete task.');
+      else setError('Failed to complete task. Please try again.');
     }
   }
 
