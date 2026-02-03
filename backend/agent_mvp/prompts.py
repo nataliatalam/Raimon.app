@@ -3,7 +3,7 @@ LLM prompt templates for agent MVP.
 Keep prompts short, bounded, and clear.
 """
 
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from agent_mvp.contracts import TaskCandidate, SelectionConstraints
 
 
@@ -110,5 +110,103 @@ Respond with ONLY valid JSON:
 }}
 
 No explanation. JSON only."""
+
+    return prompt
+
+
+def build_project_suggestions_prompt(normalized_data: Dict[str, Any]) -> str:
+    """
+    Build prompt for project profile suggestions.
+    """
+    prompt = f"""
+    Analyze this project profile and provide up to 3 specific, actionable suggestions for improvement.
+    Focus on productivity, organization, or completion strategies.
+
+    Project Data:
+    {normalized_data}
+
+    Return JSON array of suggestions, each with "category", "suggestion", "impact" (high/medium/low).
+    Keep each suggestion under 100 characters.
+    """
+
+    return prompt
+
+
+def build_stuck_microtasks_prompt(
+    task_title: str,
+    time_spent: int,
+    context: str = "general",
+) -> str:
+    """
+    Build prompt for stuck pattern microtasks.
+    """
+    prompt = f"""
+    A user is stuck on this task: "{task_title}"
+    They have been working for {time_spent} minutes.
+
+    Generate 3 specific, actionable microtasks (1-2 minutes each) to help them get unstuck.
+    Make them concrete and immediately actionable.
+
+    Base these on common getting-unstuck strategies but tailor to the task if possible.
+
+    Return as JSON array of strings, each under 100 characters.
+    """
+
+    return prompt
+
+
+def build_project_insights_prompt(
+    project_data: Dict[str, Any],
+    insight_type: str,
+) -> str:
+    """
+    Build prompt for project insights generation.
+    """
+    prompt = f"""
+    Project: {project_data.get('name', 'Unknown')}
+    Insight type: {insight_type}
+
+    Project Data:
+    {project_data}
+
+    Generate up to 3 refined insights that are:
+    - Factual and data-driven
+    - Actionable and specific
+    - Under 150 characters each
+    - Focused on {insight_type} aspects
+
+    Return as JSON array of strings.
+    """
+
+    return prompt
+
+
+def build_motivation_prompt(
+    user_data: Dict[str, Any],
+    tone: str,
+    context: str,
+) -> str:
+    """
+    Build prompt for motivation message generation.
+    """
+    prompt = f"""
+    Generate a short, encouraging motivation message based on this user data:
+
+    Context: {context}
+    Current streak: {user_data.get('current_streak', 0)} days
+    Level: {user_data.get('level', 1)}
+    Recent completion rate: {user_data.get('completion_rate', 0):.1%}
+    Sessions today: {user_data.get('recent_sessions', 0)}
+
+    Tone: {tone} (encouraging, positive, supportive)
+
+    Requirements:
+    - Under 150 characters
+    - Positive and encouraging
+    - Personalized to their progress
+    - End with actionable encouragement
+
+    Return only the message text, no quotes or extra formatting.
+    """
 
     return prompt

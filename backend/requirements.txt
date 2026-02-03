@@ -13,4 +13,5 @@ opik
 opik[evaluation]
 google-genai
 pytest
-google-generativeai                                                                                              
+google-generativeai
+langgraph>=0.1.0                                                                                              
