@@ -98,7 +98,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  /* prevents a “ghost band” at bottom */
+  /* prevents a "ghost band" at bottom */
   padding: 12px 0;
 }
 

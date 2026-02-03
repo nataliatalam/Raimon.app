@@ -23,7 +23,7 @@ from agent_mvp.contracts import (
 from agent_mvp.llm_do_selector import select_task
 from agent_mvp.llm_coach import generate_coaching_message
 from opik import track
-from core.supabase import get_supabase
+from core.supabase import get_supabase_admin
 import logging
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ def load_candidates(state: GraphState) -> GraphState:
     logger.info(f"📥 Loading candidates for user {state.user_id}")
 
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
 
         # Query open tasks
         response = (
@@ -99,7 +99,7 @@ def derive_constraints(state: GraphState) -> GraphState:
     logger.info(f"⚙️  Deriving constraints for user {state.user_id}")
 
     try:
-        supabase = get_supabase()
+        supabase = get_supabase_admin()
         today = date.today().isoformat()
 
         # Try to load today's check-in
