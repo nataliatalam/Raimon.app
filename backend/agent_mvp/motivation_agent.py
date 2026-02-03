@@ -19,6 +19,7 @@ Critical guarantees:
 - never discouraging or guilt-inducing
 """
 
+from typing import Dict, Any, Optional, List
 from agent_mvp.contracts import (
     MotivationRequest,
     MotivationResponse,

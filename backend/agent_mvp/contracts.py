@@ -209,6 +209,18 @@ class TaskCandidateScored(BaseModel):
 TaskCandidateWithScore = TaskCandidateScored
 
 
+class DoSelectionRequest(BaseModel):
+    """Request for task selection."""
+    scored_candidates: List[TaskCandidateScored] = Field(..., min_length=1)
+    constraints: "SelectionConstraints"
+
+
+class DoSelection(BaseModel):
+    """Result of task selection."""
+    selected_task: TaskCandidateScored
+    selection_reason: str = Field(..., description="Why this task was selected")
+
+
 class PriorityCandidates(BaseModel):
     """Priority analysis result."""
     candidates: List[Union[TaskCandidate, TaskCandidateScored]]
@@ -463,6 +475,15 @@ class GamificationState(BaseModel):
     streak: int = Field(default=0, ge=0)
     xp: int = Field(default=0, ge=0)
     freezes: int = Field(default=0, ge=0)
+
+
+class GamificationUpdate(BaseModel):
+    """Result of a gamification update."""
+    xp_gained: int = Field(default=0, ge=0)
+    new_total_xp: int = Field(default=0, ge=0)
+    new_level: int = Field(default=1, ge=1)
+    streak_extended: bool = Field(default=False)
+    current_streak: int = Field(default=0, ge=0)
 
 
 class XpLedgerEntry(BaseModel):

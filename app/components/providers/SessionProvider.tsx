@@ -13,8 +13,15 @@ type SessionContextValue = {
 
 const SessionContext = createContext<SessionContextValue | undefined>(undefined);
 
+// Default session to avoid hydration mismatch - localStorage is only read in useEffect
+const defaultSession: SessionData = {
+  accessToken: null,
+  refreshToken: null,
+  user: null,
+};
+
 export function SessionProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSessionState] = useState<SessionData>(() => getStoredSession());
+  const [session, setSessionState] = useState<SessionData>(defaultSession);
   const [status, setStatus] = useState<'loading' | 'ready'>('loading');
 
   useEffect(() => {

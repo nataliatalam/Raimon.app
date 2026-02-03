@@ -27,11 +27,14 @@ from agent_mvp.contracts import (
     DoSelectorOutput,
     TaskCandidate,
     TaskCandidateScored,
+    TaskCandidateWithScore,
     SelectionConstraints,
     PriorityCandidates,
     SelectionResult,
     UserProfile,
     CheckInConstraints,
+    DoSelectionRequest,
+    DoSelection,
 )
 from agent_mvp import storage
 from opik import track

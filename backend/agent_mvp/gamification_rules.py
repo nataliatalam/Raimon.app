@@ -30,6 +30,7 @@ from typing import Dict, Any
 from datetime import datetime, timedelta
 from agent_mvp.contracts import (
     GamificationState,
+    GamificationUpdate,
 )
 from agent_mvp.storage import get_gamification_state, save_gamification_state, save_xp_ledger_entry
 from core.supabase import get_supabase

@@ -20,7 +20,7 @@ Critical guarantees:
 - comprehensive error handling with fallbacks
 """
 
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from datetime import datetime
 from langgraph.graph import StateGraph, END
 from core.supabase import get_supabase

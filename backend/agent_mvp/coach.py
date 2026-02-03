@@ -19,6 +19,7 @@ Critical guarantees:
 - validated JSON output with fallbacks
 """
 
+from typing import Dict, Any, Optional, List
 from agent_mvp.contracts import (
     CoachingMessage,
 )

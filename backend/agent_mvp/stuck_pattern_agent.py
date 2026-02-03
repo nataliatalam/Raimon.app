@@ -18,7 +18,7 @@ Critical guarantees:
 - never suggests abandoning work
 """
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from agent_mvp.contracts import (
     StuckDetectionRequest,
