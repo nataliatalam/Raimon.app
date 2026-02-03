@@ -30,18 +30,22 @@ def save_active_do(active_do: Dict[str, Any]) -> None:
     """Save active do state."""
     try:
         supabase = get_supabase()
+        started_at = active_do.get("started_at")
+        if hasattr(started_at, 'isoformat'):
+            started_at = started_at.isoformat()
+
         supabase.table("active_do").upsert({
             "user_id": active_do["user_id"],
-            "task": active_do["task"],
-            "selection_reason": active_do["selection_reason"],
-            "coaching_message": active_do["coaching_message"],
-            "started_at": active_do["started_at"].isoformat(),
+            "task": active_do.get("task"),
+            "selection_reason": active_do.get("selection_reason"),
+            "coaching_message": active_do.get("coaching_message"),
+            "started_at": started_at,
             "updated_at": datetime.utcnow().isoformat(),
         }).execute()
         logger.info(f"💾 Saved active do for user {active_do['user_id']}")
     except Exception as e:
-        logger.error(f"❌ Failed to save active do: {str(e)}")
-        raise
+        # Non-blocking - log and continue
+        logger.warning(f"⚠️ Failed to save active do (non-blocking): {str(e)}")
 
 
 @track(name="storage_get_active_do")
@@ -52,7 +56,8 @@ def get_active_do(user_id: str) -> Optional[Dict[str, Any]]:
         result = supabase.table("active_do").select("*").eq("user_id", user_id).execute()
         return result.data[0] if result.data else None
     except Exception as e:
-        logger.error(f"❌ Failed to get active do: {str(e)}")
+        # Non-blocking - log and return None
+        logger.warning(f"⚠️ Failed to get active do (non-blocking): {str(e)}")
         return None
 
 
@@ -70,8 +75,8 @@ def save_session_state(user_id: str, state: Dict[str, Any]) -> None:
         }).execute()
         logger.info(f"💾 Saved session state for user {user_id}")
     except Exception as e:
-        logger.error(f"❌ Failed to save session state: {str(e)}")
-        raise
+        # Non-blocking - log and continue
+        logger.warning(f"⚠️ Failed to save session state (non-blocking): {str(e)}")
 
 
 @track(name="storage_get_session_state")
@@ -81,10 +86,11 @@ def get_session_state(user_id: str) -> Optional[Dict[str, Any]]:
         supabase = get_supabase()
         result = supabase.table("session_state").select("*").eq("user_id", user_id).execute()
         if result.data:
-            return result.data[0]["state_data"]
+            return result.data[0].get("state_data")
         return None
     except Exception as e:
-        logger.error(f"❌ Failed to get session state: {str(e)}")
+        # Non-blocking - log and return None
+        logger.warning(f"⚠️ Failed to get session state (non-blocking): {str(e)}")
         return None
 
 

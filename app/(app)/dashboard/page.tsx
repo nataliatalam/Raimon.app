@@ -20,13 +20,20 @@ export default function DashboardPage() {
   const [summaryData, setSummaryData] = useState<DaySummaryData | undefined>(undefined);
   const [streakCount, setStreakCount] = useState(0);
 
+  // Check if user already checked in today
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const checkedIn = window.sessionStorage.getItem('raimon_checked_in');
-    if (checkedIn === 'true') {
+    if (status !== 'ready' || !session.user?.id) return;
+
+    const today = new Date().toISOString().split('T')[0];
+    const storageKey = `raimon_checked_in_${session.user.id}`;
+    const checkedInData = window.sessionStorage.getItem(storageKey);
+
+    // Only skip check-in if it was done today by this user
+    if (checkedInData === today) {
       setStage('tasks');
     }
-  }, []);
+  }, [status, session.user?.id]);
 
   useEffect(() => {
     if (status !== 'ready' || !session.accessToken) return;
@@ -74,8 +81,10 @@ export default function DashboardPage() {
   }
 
   function handleCheckInComplete() {
-    if (typeof window !== 'undefined') {
-      window.sessionStorage.setItem('raimon_checked_in', 'true');
+    if (typeof window !== 'undefined' && session.user?.id) {
+      const today = new Date().toISOString().split('T')[0];
+      const storageKey = `raimon_checked_in_${session.user.id}`;
+      window.sessionStorage.setItem(storageKey, today);
     }
     setStage('tasks');
   }
