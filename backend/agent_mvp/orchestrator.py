@@ -500,13 +500,66 @@ class RaimonOrchestrator:
     def _extract_response_data(self, state: GraphState) -> Dict[str, Any]:
         """Extract response data from final state."""
         response_data = {}
-        
+
         # Extract event_type from state
         if hasattr(state, 'current_event') and state.current_event:
             event_type = self._get_event_type(state.current_event)
             if event_type:
                 response_data["event_type"] = event_type
-        
+
+        # Extract context resumption (APP_OPEN)
+        if state.context_resumption:
+            response_data["context_resumption"] = state.context_resumption
+
+        # Extract selection constraints (CHECKIN_SUBMITTED)
+        if state.selection_constraints:
+            response_data["selection_constraints"] = state.selection_constraints
+
+        # Extract user profile
+        if state.user_profile:
+            response_data["user_profile"] = state.user_profile
+
+        # Extract active do (DO_NEXT)
+        if state.active_do:
+            response_data["active_do"] = state.active_do
+
+        # Extract coach message
+        if state.coach_message:
+            response_data["coach_message"] = (
+                state.coach_message.model_dump()
+                if hasattr(state.coach_message, 'model_dump')
+                else state.coach_message
+            )
+
+        # Extract motivation message (DO_ACTION:complete, DAY_END)
+        if state.motivation_message:
+            response_data["motivation_message"] = (
+                state.motivation_message.model_dump()
+                if hasattr(state.motivation_message, 'model_dump')
+                else state.motivation_message
+            )
+
+        # Extract stuck analysis and microtasks (DO_ACTION:stuck)
+        if state.stuck_analysis:
+            response_data["stuck_analysis"] = (
+                state.stuck_analysis.model_dump()
+                if hasattr(state.stuck_analysis, 'model_dump')
+                else state.stuck_analysis
+            )
+
+        if state.microtasks:
+            response_data["microtasks"] = [
+                (m.model_dump() if hasattr(m, 'model_dump') else m)
+                for m in state.microtasks
+            ]
+
+        # Extract day insights (DAY_END)
+        if state.day_insights:
+            response_data["day_insights"] = [
+                (i.model_dump() if hasattr(i, 'model_dump') else i)
+                for i in state.day_insights
+            ]
+
         return response_data
 
 
