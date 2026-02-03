@@ -185,6 +185,24 @@ async def create_project(
                 }
                 supabase.table("project_details").insert(details_data).execute()
 
+            # Create tasks if provided in details
+            tasks_list = request.details.get("tasks", [])
+            logger.info(f"Creating project with tasks: {tasks_list}")
+            if tasks_list and isinstance(tasks_list, list):
+                for task_title in tasks_list:
+                    if isinstance(task_title, str) and task_title.strip():
+                        task_data = {
+                            "project_id": project["id"],
+                            "user_id": current_user["id"],
+                            "title": task_title.strip(),
+                            "status": "todo",
+                        }
+                        try:
+                            result = supabase.table("tasks").insert(task_data).execute()
+                            logger.info(f"Created task: {task_title} -> {result.data}")
+                        except Exception as task_err:
+                            logger.error(f"Failed to create task '{task_title}': {task_err}", exc_info=True)
+
         return {
             "success": True,
             "data": {"project": project},
@@ -1054,6 +1072,22 @@ async def create_project_with_files(
                         **filtered_details,
                     }
                     supabase.table("project_details").insert(details_data).execute()
+
+                # Create tasks if provided in details
+                tasks_list = details_dict.get("tasks", [])
+                if tasks_list and isinstance(tasks_list, list):
+                    for task_title in tasks_list:
+                        if isinstance(task_title, str) and task_title.strip():
+                            task_data = {
+                                "project_id": project["id"],
+                                "user_id": current_user["id"],
+                                "title": task_title.strip(),
+                                "status": "todo",
+                            }
+                            try:
+                                supabase.table("tasks").insert(task_data).execute()
+                            except Exception as task_err:
+                                logger.warning(f"Failed to create task: {task_err}")
             except json.JSONDecodeError:
                 logger.warning(f"Invalid JSON in details field: {details}")
 
