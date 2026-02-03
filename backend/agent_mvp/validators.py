@@ -4,11 +4,14 @@ Validation and fallback logic for agent MVP.
 Validates LLM outputs and provides deterministic fallbacks.
 """
 
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict, Any
 from agent_mvp.contracts import (
     TaskCandidate,
     DoSelectorOutput,
     CoachOutput,
+    ProjectSuggestion,
+    Microtask,
+    Insight,
 )
 import logging
 
@@ -74,6 +77,7 @@ def validate_coach_output(raw_output: dict) -> Tuple[CoachOutput, bool]:
             message="You've got this.",
             next_step="Begin.",
         ), False
+
     except Exception as e:
         logger.error(f"❌ Unexpected error validating Coach: {str(e)}")
         return CoachOutput(
@@ -81,6 +85,140 @@ def validate_coach_output(raw_output: dict) -> Tuple[CoachOutput, bool]:
             message="You've got this.",
             next_step="Begin.",
         ), False
+
+
+def fallback_coach(selected_task: Dict[str, Any], context: str = "task_selection") -> Tuple[str, str]:
+    """Deterministic fallback coaching message.
+
+    Returns:
+        (message, category)
+    """
+    title = selected_task.get("title", "this task") if isinstance(selected_task, dict) else "this task"
+    if context == "task_selection":
+        message = f"Start with one small step on {title}. You can do this."
+        category = "focus"
+    elif context == "task_completion":
+        message = f"Nice work finishing {title}. Take a quick breath and plan your next step."
+        category = "motivation"
+    else:
+        message = f"Keep going on {title}. Small progress adds up."
+        category = "general"
+
+    return message, category
+
+
+def validate_project_suggestions(raw_output: List[Dict[str, Any]]) -> Tuple[List[ProjectSuggestion], bool]:
+    """
+    Validate project suggestions output.
+
+    Returns:
+        (List[ProjectSuggestion], is_valid: bool)
+    """
+    if not isinstance(raw_output, list):
+        logger.warning("❌ Project suggestions not a list")
+        return [], False
+
+    suggestions = []
+    for item in raw_output[:3]:  # Limit to 3
+        try:
+            if isinstance(item, dict) and "suggestion" in item:
+                suggestion = ProjectSuggestion(
+                    category=item.get("category", "general"),
+                    suggestion=item["suggestion"][:100],  # Bound length
+                    impact=item.get("impact", "medium"),
+                )
+                suggestions.append(suggestion)
+        except Exception as e:
+            logger.warning(f"❌ Invalid suggestion item: {str(e)}")
+            continue
+
+    is_valid = len(suggestions) > 0
+    logger.info(f"✅ Valid project suggestions: {len(suggestions)} items")
+    return suggestions, is_valid
+
+
+def validate_stuck_microtasks(raw_output: List[str]) -> Tuple[List[Microtask], bool]:
+    """
+    Validate stuck microtasks output.
+
+    Returns:
+        (List[Microtask], is_valid: bool)
+    """
+    if not isinstance(raw_output, list):
+        logger.warning("❌ Stuck microtasks not a list")
+        return [], False
+
+    microtasks = []
+    for task in raw_output[:5]:  # Limit to 5
+        try:
+            if isinstance(task, str) and len(task) <= 100:
+                microtask = Microtask(
+                    description=task,
+                    estimated_minutes=2,  # All microtasks are 2 minutes
+                    category="unstuck_help",
+                )
+                microtasks.append(microtask)
+        except Exception as e:
+            logger.warning(f"❌ Invalid microtask item: {str(e)}")
+            continue
+
+    is_valid = len(microtasks) > 0
+    logger.info(f"✅ Valid stuck microtasks: {len(microtasks)} items")
+    return microtasks, is_valid
+
+
+def validate_project_insights(raw_output: List[str]) -> Tuple[List[Insight], bool]:
+    """
+    Validate project insights output.
+
+    Returns:
+        (List[Insight], is_valid: bool)
+    """
+    if not isinstance(raw_output, list):
+        logger.warning("❌ Project insights not a list")
+        return [], False
+
+    insights = []
+    for item in raw_output[:5]:  # Limit to 5
+        try:
+            if isinstance(item, str) and len(item) <= 150:
+                insight = Insight(
+                    content=item,
+                    category="project",
+                    confidence=0.85,  # LLM-generated
+                )
+                insights.append(insight)
+        except Exception as e:
+            logger.warning(f"❌ Invalid insight item: {str(e)}")
+            continue
+
+    is_valid = len(insights) > 0
+    logger.info(f"✅ Valid project insights: {len(insights)} items")
+    return insights, is_valid
+
+
+def validate_motivation_message(raw_output: str) -> Tuple[str, bool]:
+    """
+    Validate motivation message output.
+
+    Returns:
+        (message, is_valid: bool)
+    """
+    if not isinstance(raw_output, str):
+        logger.warning("❌ Motivation message not a string")
+        return "You've got this!", False
+
+    # Bound length
+    message = raw_output[:150] if len(raw_output) > 150 else raw_output
+
+    # Basic validation - not empty and not too short
+    is_valid = len(message.strip()) > 10
+    if not is_valid:
+        logger.warning("❌ Motivation message too short")
+        return "You've got this!", False
+
+    logger.info(f"✅ Valid motivation message: {len(message)} chars")
+    return message, True
 
 
 def fallback_do_selector(candidates: List[TaskCandidate]) -> DoSelectorOutput:
