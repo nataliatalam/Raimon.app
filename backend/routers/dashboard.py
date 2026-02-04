@@ -328,9 +328,13 @@ async def get_current_task(
 async def get_today_tasks(
     current_user: dict = Depends(get_current_user),
 ):
-    """Get all pending tasks (todo, in_progress, paused) for the user."""
+    """Get all pending tasks with agent-powered prioritization."""
+    from agent_mvp.contracts import DoNextEvent
+
     supabase = get_supabase_admin()
+    user_id = current_user["id"]
     today = date.today()
+    now = datetime.now(timezone.utc)
     today_start = datetime.combine(today, datetime.min.time()).replace(tzinfo=timezone.utc)
     today_end = today_start + timedelta(days=1)
 
@@ -338,7 +342,7 @@ async def get_today_tasks(
     pending_response = (
         supabase.table("tasks")
         .select("*, projects(name)")
-        .eq("user_id", current_user["id"])
+        .eq("user_id", user_id)
         .in_("status", ["todo", "in_progress", "paused", "blocked"])
         .order("priority", desc=True)
         .order("created_at", desc=True)
@@ -349,7 +353,7 @@ async def get_today_tasks(
     due_today = (
         supabase.table("tasks")
         .select("*, projects(name)")
-        .eq("user_id", current_user["id"])
+        .eq("user_id", user_id)
         .gte("deadline", today_start.isoformat())
         .lt("deadline", today_end.isoformat())
         .neq("status", "completed")
@@ -363,7 +367,7 @@ async def get_today_tasks(
     completed_today = (
         supabase.table("tasks")
         .select("*, projects(name)")
-        .eq("user_id", current_user["id"])
+        .eq("user_id", user_id)
         .eq("status", "completed")
         .gte("completed_at", today_start.isoformat())
         .lt("completed_at", today_end.isoformat())
@@ -389,9 +393,36 @@ async def get_today_tasks(
         if "projects" in t:
             del t["projects"]
 
-    # Sort by priority
+    # Sort by priority (default)
     priority_order = {"urgent": 0, "high": 1, "medium": 2, "low": 3}
     pending_tasks.sort(key=lambda x: priority_order.get(x.get("priority", "medium"), 2))
+
+    # Trigger DO_NEXT agent event to get AI-powered task recommendation
+    agent_recommended_task = None
+    agent_coach_message = None
+    agent_prioritized_order = None
+    try:
+        do_next_event = DoNextEvent(
+            user_id=user_id,
+            timestamp=now.isoformat(),
+            context="today_tasks",
+        )
+        agent_result = process_agent_event(do_next_event)
+        logger.info(f"🎯 DO_NEXT event processed for today-tasks: {agent_result.get('success')}")
+
+        if agent_result.get('success') and agent_result.get('data'):
+            # Get the recommended task from agent
+            active_do = agent_result['data'].get('active_do')
+            if active_do and active_do.get('task'):
+                agent_recommended_task = active_do['task']
+
+            # Get coaching message
+            coach_message = agent_result['data'].get('coach_message')
+            if coach_message:
+                agent_coach_message = coach_message
+
+    except Exception as agent_err:
+        logger.warning(f"DO_NEXT agent event failed (non-blocking): {agent_err}")
 
     return {
         "success": True,
@@ -402,6 +433,11 @@ async def get_today_tasks(
                 "total_pending": len(pending_tasks),
                 "total_completed": len(completed),
             },
+            # Agent-powered recommendations
+            "agent": {
+                "recommended_task": agent_recommended_task,
+                "coach_message": agent_coach_message,
+            } if agent_recommended_task or agent_coach_message else None,
         },
     }
 

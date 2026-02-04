@@ -230,8 +230,17 @@ class RaimonOrchestrator:
                         "user_profile": state.user_profile,
                     }
                     state.selection_constraints = adapt_checkin_to_constraints(constraints_request)
+                    logger.info(f"📋 Using check-in constraints: energy={latest_checkin.get('energy_level')}")
                 else:
-                    raise ValueError("No recent check-in found for task selection")
+                    # No check-in yet - use default balanced constraints
+                    logger.info(f"📋 No check-in found, using default constraints")
+                    state.selection_constraints = {
+                        "max_minutes": 120,
+                        "mode": "balanced",
+                        "current_energy": 5,  # Default medium energy
+                        "avoid_tags": [],
+                        "prefer_priority": None,
+                    }
 
             # Get task candidates
             candidates = get_task_candidates(user_id, state.selection_constraints)
