@@ -1,9 +1,21 @@
+"""
+Run only the Opik smoke test:
+pytest -q backend/tests_agent_mvp/test_do_selector.py -k opik_trace_smoke
+
+Ensure Opik env vars are set in your shell before running tests:
+OPIK_API_KEY, OPIK_WORKSPACE, OPIK_PROJECT
+"""
+
 import pytest
 from unittest.mock import AsyncMock, patch
-from agent_mvp.do_selector import DoSelector
+from agent_mvp.do_selector import DoSelector, select_optimal_task
 from agent_mvp.contracts import (
-    PriorityCandidates, TaskCandidate, UserProfile,
-    CheckInConstraints, SelectionResult
+    PriorityCandidates,
+    TaskCandidate,
+    UserProfile,
+    CheckInConstraints,
+    SelectionResult,
+    SelectionConstraints,
 )
 
 
@@ -125,8 +137,7 @@ class TestDoSelector:
         assert result.id in ["task-1", "task-2", "task-3"]
         assert result.score >= 0
 
-    @patch('agent_mvp.do_selector.get_supabase')
-    async def test_select_task_full_flow(self, mock_supabase, do_selector, mock_storage,
+    async def test_select_task_full_flow(self, do_selector, mock_storage,
                                        sample_user_profile, sample_constraints, sample_candidates):
         # Setup mocks
         mock_storage.get_user_profile.return_value = sample_user_profile
@@ -149,8 +160,7 @@ class TestDoSelector:
 
             mock_storage.get_user_profile.assert_called_once_with("test-user")
 
-    @patch('agent_mvp.do_selector.get_supabase')
-    async def test_select_task_no_candidates(self, mock_supabase, do_selector, mock_storage,
+    async def test_select_task_no_candidates(self, do_selector, mock_storage,
                                           sample_user_profile, sample_constraints):
         # Setup with no candidates
         empty_candidates = PriorityCandidates(candidates=[])
@@ -191,3 +201,42 @@ class TestDoSelector:
         # Perfect match should score high
         perfect_score = do_selector._calculate_context_match(["work", "urgent"], ["work", "urgent"])
         assert perfect_score > score
+
+    def test_select_optimal_task_is_deterministic(self):
+        constraints = SelectionConstraints(max_minutes=60, current_energy=3, mode="balanced")
+        scored_candidates = [
+            {"task": {"id": "b", "title": "Task B", "estimated_duration": 20}, "score": 80},
+            {"task": {"id": "a", "title": "Task A", "estimated_duration": 20}, "score": 80},
+            {"task": {"id": "c", "title": "Task C", "estimated_duration": 30}, "score": 80},
+        ]
+
+        out1 = select_optimal_task(
+            {"user_id": "test-user", "candidates": scored_candidates, "constraints": constraints}
+        )
+        out2 = select_optimal_task(
+            {"user_id": "test-user", "candidates": scored_candidates, "constraints": constraints}
+        )
+
+        assert out1.task_id == out2.task_id == "a"
+
+    def test_opik_trace_smoke(self):
+        constraints = SelectionConstraints(max_minutes=45, current_energy=3, mode="balanced")
+        scored_candidates = [
+            {"task": {"id": "t1", "title": "Quick Task", "estimated_duration": 15}, "score": 50},
+            {"task": {"id": "t2", "title": "Longer Task", "estimated_duration": 40}, "score": 60},
+        ]
+
+        output = select_optimal_task(
+            {
+                "user_id": "opik-test-user",
+                "candidates": scored_candidates,
+                "constraints": constraints,
+                "recent_actions": {"trace_id": "opik-smoke-do-selector"},
+            }
+        )
+        assert output.task_id == "t2"
+
+        if hasattr(output, "model_dump"):
+            print(output.model_dump())
+        else:
+            print(output.dict())

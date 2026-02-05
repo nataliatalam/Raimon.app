@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, status, Depends
-from typing import List
+from typing import List, Optional
 from models.user import (
     UserProfile,
     UserProfileUpdate,
@@ -16,10 +16,35 @@ from agent_mvp.orchestrator import process_agent_event
 from datetime import datetime, timezone, date
 from opik import track
 import logging
+from agent_mvp.orchestrator import process_agent_event
+from agent_mvp.contracts import CheckInSubmittedEvent
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/users", tags=["Users"])
+
+
+# ============================================================================
+# Agent Integration - Triggers orchestrator on user events
+# ============================================================================
+
+def trigger_agent_on_checkin(user_id: str, energy_level: int, focus_areas: List[str]):
+    """
+    Emit CHECKIN_SUBMITTED event to orchestrator (sync, doesn't block API response much).
+    Logs success/failure but doesn't block the API response.
+    """
+    try:
+        event = CheckInSubmittedEvent(
+            user_id=user_id,
+            energy_level=energy_level,
+            focus_areas=focus_areas,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+        )
+        logger.info(f"🤖 AGENTS_INVOKED event_type=CHECKIN_SUBMITTED user_id={user_id}")
+        result = process_agent_event(event)
+        logger.info(f"🤖 AGENTS_DONE active_do_task_id={result.get('data', {}).get('selected_task_id', 'N/A')} user_id={user_id}")
+    except Exception as e:
+        logger.error(f"❌ Agent invocation failed: {str(e)}", exc_info=False)
 
 
 @router.get("/profile")
@@ -273,6 +298,8 @@ async def daily_check_in(
                 energy_level=request.energy_level,
                 mood=request.mood,
                 focus_areas=request.focus_areas or [],
+                time_available=getattr(request, "time_available", None),
+                timestamp=datetime.now(timezone.utc).isoformat(),
             )
             agent_result = process_agent_event(checkin_event)
             logger.info(f"📝 CHECKIN_SUBMITTED event processed for user {current_user['id']}: {agent_result.get('success')}")
@@ -312,6 +339,65 @@ async def daily_check_in(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to record check-in",
         )
+
+
+@router.post("/agents/trigger-debug")
+async def trigger_agent_debug(
+    event_type: str = "APP_OPEN",
+    user_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    DEBUG ONLY: Manually trigger agent orchestrator with a test event.
+    
+    Used to verify that agent system is wired correctly.
+    
+    Example:
+      POST /api/users/agents/trigger-debug?event_type=APP_OPEN
+    """
+    user_id = user_id or current_user["id"]
+    
+    try:
+        from agent_mvp.contracts import AppOpenEvent
+        
+        if event_type == "APP_OPEN":
+            event = AppOpenEvent(
+                user_id=user_id,
+                timestamp=datetime.now(timezone.utc).isoformat(),
+            )
+        elif event_type == "CHECKIN_SUBMITTED":
+            event = CheckInSubmittedEvent(
+                user_id=user_id,
+                energy_level=6,
+                focus_areas=["debug"],
+                timestamp=datetime.now(timezone.utc).isoformat(),
+            )
+        else:
+            return {
+                "ok": False,
+                "error": f"Unknown event_type: {event_type}",
+                "supported": ["APP_OPEN", "CHECKIN_SUBMITTED"],
+            }
+        
+        logger.info(f"🤖 DEBUG: AGENTS_INVOKED event_type={event_type} user_id={user_id}")
+        result = process_agent_event(event)
+        logger.info(f"🤖 DEBUG: AGENTS_DONE event_type={event_type} user_id={user_id}")
+        
+        return {
+            "ok": True,
+            "event_type": event_type,
+            "user_id": user_id,
+            "agent_ran": True,
+            "response_keys": list(result.keys()) if isinstance(result, dict) else "N/A",
+        }
+    except Exception as e:
+        logger.error(f"❌ DEBUG agent trigger failed: {str(e)}", exc_info=True)
+        return {
+            "ok": False,
+            "event_type": event_type,
+            "user_id": user_id,
+            "error": str(e),
+        }
 
 
 @router.get("/state/history")

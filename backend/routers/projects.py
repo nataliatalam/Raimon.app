@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Optional, List
 from uuid import UUID
 import json
+import logging
 from models.project import (
     ProjectCreate,
     ProjectUpdate,
@@ -173,6 +174,9 @@ async def create_project(
             )
 
         project = response.data[0]
+
+        # Log project creation for potential agent processing
+        logger.info(f"🤖 PROJECT_CREATED user_id={current_user['id']} project_id={project['id']} project_name={project['name']}")
 
         # Create project_details record if details provided
         if request.details:

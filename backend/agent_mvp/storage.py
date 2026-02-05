@@ -15,12 +15,49 @@ All operations use get_supabase() helper.
 """
 
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
-from core.supabase import get_supabase
+from datetime import datetime, timedelta, date
+from core.supabase import get_supabase, get_supabase_admin
 from opik import track
 import logging
 
 logger = logging.getLogger(__name__)
+
+_agent_service_role_warning_logged = False
+
+
+def _get_agent_supabase():
+    """Prefer service-role client for agent writes; fallback safely if missing."""
+    global _agent_service_role_warning_logged
+    supabase_admin = get_supabase_admin()
+    if supabase_admin is get_supabase() and not _agent_service_role_warning_logged:
+        logger.warning(
+            "SUPABASE_SERVICE_ROLE_KEY missing; agent writes are using anon client and may fail."
+        )
+        _agent_service_role_warning_logged = True
+    return supabase_admin
+
+
+def _json_safe(value: Any) -> Any:
+    """Recursively convert non-JSON-native values (e.g., datetime) to JSON-safe values."""
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+
+    if isinstance(value, list):
+        return [_json_safe(v) for v in value]
+
+    if isinstance(value, tuple):
+        return [_json_safe(v) for v in value]
+
+    if hasattr(value, "model_dump"):
+        try:
+            return value.model_dump(mode="json")
+        except Exception:
+            return value.model_dump()
+
+    return value
 
 
 # ===== ACTIVE DO OPERATIONS =====
@@ -28,20 +65,28 @@ logger = logging.getLogger(__name__)
 @track(name="storage_save_active_do")
 def save_active_do(active_do: Dict[str, Any]) -> None:
     """Save active do state."""
+    # Don't save if no task selected
+    if not active_do.get("task"):
+        logger.warning(f"⚠️ active_do not saved: no selected task for user {active_do.get('user_id')}")
+        return
+    
     try:
-        supabase = get_supabase()
+        supabase = _get_agent_supabase()
         started_at = active_do.get("started_at")
         if hasattr(started_at, 'isoformat'):
             started_at = started_at.isoformat()
 
-        supabase.table("active_do").upsert({
-            "user_id": active_do["user_id"],
-            "task": active_do.get("task"),
-            "selection_reason": active_do.get("selection_reason"),
-            "coaching_message": active_do.get("coaching_message"),
-            "started_at": started_at,
-            "updated_at": datetime.utcnow().isoformat(),
-        }).execute()
+        supabase.table("active_do").upsert(
+            {
+                "user_id": active_do["user_id"],
+                "task": active_do.get("task"),
+                "selection_reason": active_do.get("selection_reason"),
+                "coaching_message": active_do.get("coaching_message"),
+                "started_at": started_at,
+                "updated_at": datetime.utcnow().isoformat(),
+            },
+            on_conflict="user_id",
+        ).execute()
         logger.info(f"💾 Saved active do for user {active_do['user_id']}")
     except Exception as e:
         # Non-blocking - log and continue
@@ -52,7 +97,7 @@ def save_active_do(active_do: Dict[str, Any]) -> None:
 def get_active_do(user_id: str) -> Optional[Dict[str, Any]]:
     """Get active do for user."""
     try:
-        supabase = get_supabase()
+        supabase = _get_agent_supabase()
         result = supabase.table("active_do").select("*").eq("user_id", user_id).execute()
         return result.data[0] if result.data else None
     except Exception as e:
@@ -67,7 +112,7 @@ def get_active_do(user_id: str) -> Optional[Dict[str, Any]]:
 def save_session_state(user_id: str, state: Dict[str, Any]) -> None:
     """Save session state."""
     try:
-        supabase = get_supabase()
+        supabase = _get_agent_supabase()
         supabase.table("session_state").upsert({
             "user_id": user_id,
             "state_data": state,
@@ -83,7 +128,7 @@ def save_session_state(user_id: str, state: Dict[str, Any]) -> None:
 def get_session_state(user_id: str) -> Optional[Dict[str, Any]]:
     """Get session state for user."""
     try:
-        supabase = get_supabase()
+        supabase = _get_agent_supabase()
         result = supabase.table("session_state").select("*").eq("user_id", user_id).execute()
         if result.data:
             return result.data[0].get("state_data")
@@ -267,7 +312,7 @@ def get_xp_history(user_id: str, days: int = 30) -> List[Dict[str, Any]]:
 def log_agent_event(user_id: str, event_type: str, event_data: Dict[str, Any]) -> None:
     """Log agent event."""
     try:
-        supabase = get_supabase()
+        supabase = _get_agent_supabase()
         supabase.table("agent_events").insert({
             "user_id": user_id,
             "event_type": event_type,
@@ -276,15 +321,14 @@ def log_agent_event(user_id: str, event_type: str, event_data: Dict[str, Any]) -
         }).execute()
         logger.info(f"📝 Logged agent event: {event_type} for user {user_id}")
     except Exception as e:
-        logger.error(f"❌ Failed to log agent event: {str(e)}")
-        raise
+        logger.warning(f"⚠️ Failed to log agent event (non-blocking): {str(e)}")
 
 
 @track(name="storage_get_agent_events")
 def get_agent_events(user_id: str, event_type: str = None, hours: int = 24) -> List[Dict[str, Any]]:
     """Get agent events."""
     try:
-        supabase = get_supabase()
+        supabase = _get_agent_supabase()
         query = supabase.table("agent_events").select("*").eq("user_id", user_id)
 
         if event_type:
@@ -294,7 +338,7 @@ def get_agent_events(user_id: str, event_type: str = None, hours: int = 24) -> L
         result = query.gte("timestamp", since.isoformat()).order("timestamp", desc=True).execute()
         return result.data
     except Exception as e:
-        logger.error(f"❌ Failed to get agent events: {str(e)}")
+        logger.warning(f"⚠️ Failed to get agent events (non-blocking): {str(e)}")
         return []
 
 
@@ -304,7 +348,7 @@ def get_agent_events(user_id: str, event_type: str = None, hours: int = 24) -> L
 def get_user_sessions(user_id: str, days: int = 30) -> List[Dict[str, Any]]:
     """Get user work sessions."""
     try:
-        supabase = get_supabase()
+        supabase = _get_agent_supabase()
         since = datetime.utcnow() - timedelta(days=days)
         result = supabase.table("work_sessions").select("*").eq("user_id", user_id).gte("created_at", since.isoformat()).execute()
         return result.data
@@ -317,7 +361,7 @@ def get_user_sessions(user_id: str, days: int = 30) -> List[Dict[str, Any]]:
 def get_user_tasks(user_id: str, completed_only: bool = False, days: int = 30) -> List[Dict[str, Any]]:
     """Get user tasks."""
     try:
-        supabase = get_supabase()
+        supabase = _get_agent_supabase()
         query = supabase.table("tasks").select("*").eq("user_id", user_id)
 
         if completed_only:
@@ -335,7 +379,7 @@ def get_user_tasks(user_id: str, completed_only: bool = False, days: int = 30) -
 def get_user_checkins(user_id: str, days: int = 30) -> List[Dict[str, Any]]:
     """Get user daily check-ins."""
     try:
-        supabase = get_supabase()
+        supabase = _get_agent_supabase()
         since = datetime.utcnow() - timedelta(days=days)
         result = supabase.table("daily_check_ins").select("*").eq("user_id", user_id).gte("created_at", since.isoformat()).execute()
         return result.data
@@ -352,35 +396,92 @@ def save_ai_learning(
     expires_at: datetime = None,
 ) -> None:
     """Save AI learning data."""
+    # Use service-role client when available to avoid RLS write failures for agent jobs.
+    supabase = _get_agent_supabase()
+    base_payload = {
+        "user_id": user_id,
+        "agent_type": agent_type,
+        "data": _json_safe(data),
+    }
+    full_payload = {
+        **base_payload,
+        "expires_at": expires_at.isoformat() if expires_at else None,
+        "updated_at": datetime.utcnow().isoformat(),
+    }
+
     try:
-        supabase = get_supabase()
-        supabase.table("ai_learning_data").upsert({
-            "user_id": user_id,
-            "agent_type": agent_type,
-            "data": data,
-            "expires_at": expires_at.isoformat() if expires_at else None,
-            "updated_at": datetime.utcnow().isoformat(),
-        }).execute()
-        logger.info(f"💾 Saved AI learning data for user {user_id}, agent {agent_type}")
+        # Newer schema (migration 003): includes expires_at + updated_at.
+        supabase.table("ai_learning_data").upsert(full_payload).execute()
+        logger.info(f"Saved AI learning data for user {user_id}, agent {agent_type}")
     except Exception as e:
-        logger.error(f"❌ Failed to save AI learning: {str(e)}")
+        error_text = str(e)
+
+        # Compatibility fallback for older schema that lacks expires_at/updated_at.
+        if (
+            "Could not find the 'expires_at' column" in error_text
+            or "Could not find the 'updated_at' column" in error_text
+        ):
+            try:
+                supabase.table("ai_learning_data").insert(base_payload).execute()
+                logger.warning(
+                    "ai_learning_data legacy schema detected (missing expires_at/updated_at). "
+                    "Saved learning with base columns only."
+                )
+                return
+            except Exception as fallback_error:
+                logger.error(f"Failed to save AI learning (legacy fallback): {fallback_error}")
+                raise
+
+        logger.error(f"Failed to save AI learning: {error_text}")
         raise
 
 
+def _normalize_constraints(constraints: Any) -> Dict[str, Any]:
+    """Normalize constraints from dict/Pydantic into a stable dict shape."""
+    if constraints is None:
+        return {}
+
+    if isinstance(constraints, dict):
+        c = dict(constraints)
+    elif hasattr(constraints, "model_dump"):
+        c = constraints.model_dump()
+    else:
+        c = {}
+
+    # Backward/forward compatibility for field names.
+    c["current_energy"] = c.get("current_energy", c.get("energy_level", 5))
+    c["max_minutes"] = c.get("max_minutes", c.get("max_task_duration", 120))
+    c["avoid_tags"] = c.get("avoid_tags") or []
+    return c
+
+
 @track(name="storage_get_task_candidates")
-def get_task_candidates(user_id: str, constraints: Dict[str, Any]) -> List[Dict[str, Any]]:
+def get_task_candidates(user_id: str, constraints: Any) -> List[Dict[str, Any]]:
     """Get task candidates for selection."""
     try:
-        supabase = get_supabase()
-        # Get pending tasks
-        result = supabase.table("tasks").select("*").eq("user_id", user_id).is_("completed_at", "null").execute()
+        supabase = _get_agent_supabase()
+        # Get pending tasks (align with dashboard pending-task definition).
+        result = (
+            supabase.table("tasks")
+            .select("*")
+            .eq("user_id", user_id)
+            .in_("status", ["todo", "in_progress", "paused", "blocked"])
+            .execute()
+        )
 
         candidates = []
+        normalized = _normalize_constraints(constraints)
+        total_tasks = len(result.data or [])
         for task in result.data:
             # Apply basic filtering
-            if _task_matches_constraints(task, constraints):
+            if _task_matches_constraints(task, normalized):
                 candidates.append(task)
 
+        logger.info(
+            f"Task candidate scan for user {user_id}: total={total_tasks}, "
+            f"after_filters={len(candidates)}, energy={normalized.get('current_energy')}, "
+            f"max_minutes={normalized.get('max_minutes')}, avoid_tags={len(normalized.get('avoid_tags', []))}"
+        )
         return candidates[:20]  # Limit candidates
     except Exception as e:
         logger.error(f"❌ Failed to get task candidates: {str(e)}")
@@ -391,18 +492,22 @@ def _task_matches_constraints(task: Dict[str, Any], constraints: Dict[str, Any])
     """Check if task matches selection constraints."""
     # Energy level check
     energy_req = _estimate_task_energy(task)
-    if energy_req > constraints.get("energy_level", 5):
+    if energy_req > constraints.get("current_energy", 5):
         return False
 
     # Time check
-    duration = task.get("estimated_duration", 60)
-    if duration > constraints.get("max_task_duration", 120):
+    duration_raw = task.get("estimated_duration", 60)
+    try:
+        duration = int(duration_raw) if duration_raw is not None else 60
+    except (TypeError, ValueError):
+        duration = 60
+    if duration > constraints.get("max_minutes", 120):
         return False
 
-    # Focus areas check
-    task_tags = set(task.get("tags", []))
-    focus_areas = set(constraints.get("focus_areas", []))
-    if focus_areas and not task_tags & focus_areas:
+    # Avoid-tags check
+    task_tags = set((task.get("tags", []) or []))
+    avoid_tags = set(constraints.get("avoid_tags", []) or [])
+    if avoid_tags and task_tags and task_tags & avoid_tags:
         return False
 
     return True
@@ -491,16 +596,22 @@ def get_task_dependencies(task_id: str) -> Dict[str, List[str]]:
 def update_session_status(task_id: str, status: str) -> None:
     """Update work session status."""
     try:
-        supabase = get_supabase()
-        update_data = {"status": status, "updated_at": datetime.utcnow().isoformat()}
-        if status == "completed":
-            update_data["completed_at"] = datetime.utcnow().isoformat()
+        supabase = _get_agent_supabase()
+        now_iso = datetime.utcnow().isoformat()
+        update_data = {}
+        if status == "started":
+            update_data["start_time"] = now_iso
+        elif status == "completed":
+            update_data["end_time"] = now_iso
+
+        if not update_data:
+            logger.info(f"ℹ️ No work session fields to update for task {task_id}: {status}")
+            return
 
         supabase.table("work_sessions").update(update_data).eq("task_id", task_id).execute()
-        logger.info(f"✅ Updated session status for task {task_id}: {status}")
+        logger.info(f"✅ Updated session timing for task {task_id}: {status}")
     except Exception as e:
-        logger.error(f"❌ Failed to update session status: {str(e)}")
-        raise
+        logger.warning(f"⚠️ Failed to update session status (non-blocking): {str(e)}")
 
 
 @track(name="storage_get_recent_sessions")

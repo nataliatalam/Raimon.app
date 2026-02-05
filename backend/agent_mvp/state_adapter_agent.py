@@ -51,29 +51,46 @@ def adapt_checkin_to_constraints(
 
     constraints = SelectionConstraints()
 
-    # Map energy level directly
-    constraints.energy_level = check_in.energy_level
+    # Map energy level directly (SelectionConstraints uses "current_energy")
+    constraints.current_energy = check_in.energy_level
 
-    # Calculate time available from check-in
-    constraints.time_available = _calculate_time_available(check_in)
+    # Calculate time available from check-in (SelectionConstraints uses "max_minutes")
+    constraints.max_minutes = _calculate_time_available(check_in)
 
-    # Extract focus areas from check-in
-    constraints.focus_areas = _extract_focus_areas(check_in)
+    # Determine mode based on energy and time available
+    if check_in.energy_level <= 2 and constraints.max_minutes <= 30:
+        constraints.mode = "quick"
+    elif check_in.energy_level >= 8:
+        constraints.mode = "focus"
+    elif "learning" in getattr(check_in, "priorities", []):
+        constraints.mode = "learning"
+    else:
+        constraints.mode = "balanced"
 
-    # Determine blocked categories based on energy and preferences
-    constraints.blocked_categories = _determine_blocked_categories(check_in, user_profile)
+    # Extract focus areas and derive avoid_tags conservatively.
+    # If user didn't specify focus areas, do not block broad categories.
+    focus_areas = _extract_focus_areas(check_in)
+    all_categories = ["work", "personal", "health", "learning", "creative", "social", "maintenance"]
+    recognized_focus = [cat for cat in focus_areas if cat in all_categories]
+    if recognized_focus:
+        avoid_tags = [cat for cat in all_categories if cat not in recognized_focus]
+        if avoid_tags:
+            constraints.avoid_tags = avoid_tags
 
-    # Set max task duration based on time and energy
-    constraints.max_task_duration = _calculate_max_task_duration(constraints)
+    # Set prefer_priority based on urgent tasks
+    if hasattr(check_in, "priorities") and "urgent" in check_in.priorities:
+        constraints.prefer_priority = "urgent"
+    elif check_in.energy_level >= 8:
+        constraints.prefer_priority = "high"
 
-    logger.info(f"✅ Constraints adapted: energy={constraints.energy_level}, time={constraints.time_available}")
+    logger.info(f"✅ Constraints adapted: energy={constraints.current_energy}, time={constraints.max_minutes}, mode={constraints.mode}")
     return constraints
 
 
 def _calculate_time_available(check_in: DailyCheckIn) -> int:
     """Calculate available time in minutes from check-in."""
-    # Base time from check-in
-    base_time = check_in.time_available or 120  # Default 2 hours
+    # Base time from check-in (use focus_minutes if available)
+    base_time = check_in.focus_minutes or 120  # Default 2 hours
 
     # Adjust based on energy level
     energy_multiplier = {

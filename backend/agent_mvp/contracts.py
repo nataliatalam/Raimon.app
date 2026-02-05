@@ -249,6 +249,8 @@ class DailyCheckinRequest(BaseModel):
     sleep_quality: Optional[int] = Field(None, ge=1, le=10)
     focus_minutes: Optional[int] = Field(None, ge=0, le=1440)
     context: Optional[str] = Field(None, max_length=500)
+    priorities: List[str] = Field(default_factory=list)
+    day_of_week: int = Field(default_factory=lambda: __import__('datetime').datetime.utcnow().weekday())
 
 
 # Alias for backward compatibility
@@ -430,6 +432,8 @@ class CheckInToConstraintsRequest(BaseModel):
     energy_level: int = Field(ge=1, le=10)
     focus_areas: List[str] = Field(default_factory=list)
     time_available: Optional[int] = None
+    check_in_data: Optional['DailyCheckIn'] = None
+    user_profile: Optional['UserProfileAnalysis'] = None
 
 
 class DoNextEvent(BaseModel):

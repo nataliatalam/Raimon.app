@@ -31,6 +31,25 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def _extract_start_hour(session: Dict[str, Any]) -> int:
+    """Extract start hour from work session shape variants."""
+    start_time = session.get("start_time")
+
+    if isinstance(start_time, dict):
+        hour = start_time.get("hour")
+        if isinstance(hour, int) and 0 <= hour <= 23:
+            return hour
+
+    if isinstance(start_time, str):
+        try:
+            dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+            return dt.hour
+        except Exception:
+            pass
+
+    return 9
+
+
 @track(name="user_profile_agent")
 def analyze_user_profile(
     user_id: str,
@@ -85,7 +104,7 @@ def _analyze_work_patterns(user_id: str) -> Dict[str, Any]:
     completion_rate = completed / len(sessions) if sessions else 0
 
     # Find peak hours (simplified)
-    hours = [s.get("start_time", {}).get("hour", 9) for s in sessions]
+    hours = [_extract_start_hour(s) for s in sessions]
     peak_hour = max(set(hours), key=hours.count) if hours else 9
 
     return {
