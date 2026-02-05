@@ -145,6 +145,7 @@ async def startup_event():
     opik_key_set = bool(os.getenv('OPIK_API_KEY'))
     opik_project = os.getenv('OPIK_PROJECT_NAME', 'raimon')
     opik_workspace = os.getenv('OPIK_WORKSPACE', 'default')
+    supabase_service_role_set = bool(os.getenv('SUPABASE_SERVICE_ROLE_KEY'))
     
     print()
     print("="*60)
@@ -154,8 +155,14 @@ async def startup_event():
     print(f"   - Project: {opik_project}")
     print(f"   - Workspace: {opik_workspace}")
     print(f"   - API Key: {'Set' if opik_key_set else 'Not Set'}")
+    print(f"🗄️  Supabase Service Role: {'✅ SET' if supabase_service_role_set else '⚠️  NOT SET'}")
     print("="*60)
     print()
+
+    if not supabase_service_role_set:
+        logger.warning(
+            "SUPABASE_SERVICE_ROLE_KEY is not set; agent writes will use anon client and may hit RLS."
+        )
 
 
 @app.get("/")

@@ -29,9 +29,14 @@ from agent_mvp.contracts import (
     AgentMVPResponse,
     AppOpenEvent,
     CheckInSubmittedEvent,
+    CheckInToConstraintsRequest,
     DoNextEvent,
     DoActionEvent,
     DayEndEvent,
+    DailyCheckIn,
+    UserProfileAnalysis,
+    TaskCandidate,
+    SelectionConstraints,
 )
 from agent_mvp.user_profile_agent import analyze_user_profile
 from agent_mvp.state_adapter_agent import adapt_checkin_to_constraints
@@ -42,7 +47,8 @@ from agent_mvp.stuck_pattern_agent import detect_stuck_patterns
 from agent_mvp.project_insight_agent import generate_project_insights
 from agent_mvp.motivation_agent import generate_motivation
 from agent_mvp.gamification_rules import update_gamification
-from agent_mvp.coach import generate_coaching_message
+from agent_mvp.llm_do_selector import select_task as llm_select_task
+from agent_mvp.llm_coach import generate_coaching_message as llm_generate_coaching_message
 from agent_mvp.storage import (
     get_task_candidates,
     save_active_do,
@@ -169,16 +175,39 @@ class RaimonOrchestrator:
             if hasattr(self, "agents") and self.agents and "events" in self.agents:
                 self.agents["events"].log_event(event)
 
-            checkin_payload = {
-                "user_id": user_id,
-                "energy_level": getattr(event, "energy_level", None),
-                "focus_areas": getattr(event, "focus_areas", []),
-            }
+            # Create a DailyCheckIn from the event data
+            # The event only has minimal fields, so we construct a DailyCheckIn with what we have
+            from datetime import datetime
+            daily_checkin = DailyCheckIn(
+                date=datetime.utcnow().isoformat().split('T')[0],  # YYYY-MM-DD format
+                energy_level=event.energy_level,
+                mood=getattr(event, "mood", None),
+                sleep_quality=getattr(event, "sleep_quality", None),
+                focus_minutes=event.time_available if event.time_available else None,
+                context=getattr(event, "context", None),
+                priorities=event.focus_areas if event.focus_areas else [],  # Map focus_areas to priorities
+                day_of_week=datetime.utcnow().weekday(),
+            )
+            
+            # For now, use minimal user profile (can be enhanced later)
+            user_profile = UserProfileAnalysis()
+
+            # Create the constraint request with proper objects
+            constraint_request = CheckInToConstraintsRequest(
+                user_id=user_id,
+                energy_level=event.energy_level,
+                focus_areas=event.focus_areas,
+                time_available=getattr(event, "time_available", None),
+                check_in_data=daily_checkin,
+                user_profile=user_profile,
+            )
+
+            logger.info(f"📋 Constraint request created: event_type={type(event).__name__} request_type={type(constraint_request).__name__}")
 
             if hasattr(self, "agents") and self.agents and "state_adapter_agent" in self.agents:
-                constraints = self.agents["state_adapter_agent"].process(checkin_payload)
+                constraints = self.agents["state_adapter_agent"].process(constraint_request)
             else:
-                constraints = adapt_checkin_to_constraints({"check_in_data": checkin_payload})
+                constraints = adapt_checkin_to_constraints(constraint_request)
 
             if hasattr(self, "agents") and self.agents and "priority_engine_agent" in self.agents:
                 candidates = self.agents["priority_engine_agent"].process({"constraints": constraints})
@@ -190,16 +219,33 @@ class RaimonOrchestrator:
             else:
                 selection = {"task": None, "reason": ""}
 
-            if hasattr(self, "storage") and self.storage:
-                self.storage.save_active_do(selection)
+            # Ensure selection has all required fields for storage
+            if isinstance(selection, dict):
+                from datetime import datetime
+                selection["user_id"] = user_id
+                if "selection_reason" not in selection:
+                    selection["selection_reason"] = selection.get("reason", "No specific reason")
+                if "coaching_message" not in selection:
+                    selection["coaching_message"] = "Get started with your task!"
+                if "started_at" not in selection:
+                    selection["started_at"] = datetime.utcnow()
+            
+            # Try to save to storage, but only if there's a selected task and don't fail if storage is unavailable
+            if selection.get("task") and hasattr(self, "storage") and self.storage:
+                try:
+                    self.storage.save_active_do(selection)
+                except Exception as storage_error:
+                    logger.warning(f"⚠️ Storage save skipped: {str(storage_error)}")
+            elif not selection.get("task"):
+                logger.warning(f"⚠️ active_do not saved: no selected task for user {user_id}")
 
-            state.selection_constraints = constraints
+            state.constraints = constraints
             state.success = True
 
             logger.info(f"✅ Check-in processed for user {user_id}")
 
         except Exception as e:
-            logger.error(f"❌ Check-in processing failed: {str(e)}")
+            logger.error(f"❌ Check-in processing failed: {str(e)}", exc_info=True)
             state.success = False
             state.error = f"Failed to process check-in: {str(e)}"
 
@@ -212,25 +258,69 @@ class RaimonOrchestrator:
             event = state.current_event
             user_id = event.user_id
 
-            log_agent_event(user_id, "do_next", {"context": event.context})
+            try:
+                log_agent_event(user_id, "do_next", {"context": getattr(event, "context", None)})
+            except Exception as log_err:
+                logger.warning(f"⚠️ log_agent_event failed (non-blocking): {log_err}")
 
-            # Get user profile if not already available
-            if not state.user_profile:
-                profile_request = {"include_tasks": True, "include_sessions": True, "include_patterns": True}
-                state.user_profile = analyze_user_profile(user_id, profile_request)
+            # Get user profile (handle both dict and Pydantic returns)
+            user_profile = None
+            try:
+                # Create proper UserProfileAnalyzeRequest object
+                from agent_mvp.contracts import UserProfileAnalyzeRequest
+                profile_request = UserProfileAnalyzeRequest(
+                    include_tasks=True,
+                    include_sessions=True,
+                    include_patterns=True,
+                )
+                profile_result = analyze_user_profile(user_id, profile_request)
+                # If result is a dict, convert to UserProfileAnalysis
+                if isinstance(profile_result, dict):
+                    user_profile = UserProfileAnalysis(**{k: v for k, v in profile_result.items() if k in UserProfileAnalysis.__fields__})
+                else:
+                    user_profile = profile_result
+            except Exception as e:
+                logger.warning(f"Could not fetch user profile: {str(e)}")
+                user_profile = UserProfileAnalysis()
 
             # Get selection constraints if not already available
             if not state.selection_constraints:
-                # Get latest check-in
-                recent_checkins = get_user_checkins(user_id, days=1)
-                if recent_checkins:
-                    latest_checkin = recent_checkins[0]
-                    constraints_request = {
-                        "check_in_data": latest_checkin,
-                        "user_profile": state.user_profile,
-                    }
+                # Get latest check-in from daily_check_ins table using service-role client
+                latest_checkin = None
+                try:
+                    from core.supabase import get_supabase_admin
+                    from datetime import date
+                    supabase = get_supabase_admin()
+                    result = supabase.table("daily_check_ins").select("*").eq("user_id", user_id).eq("date", date.today().isoformat()).execute()
+                    if result.data:
+                        latest_checkin = result.data[0]
+                except Exception as e:
+                    logger.warning(f"Could not fetch check-in from daily_check_ins: {str(e)}")
+                
+                if latest_checkin:
+                    # Convert dict to CheckInToConstraintsRequest object
+                    checkin_obj = DailyCheckIn(
+                        date=latest_checkin.get('date', datetime.utcnow().isoformat().split('T')[0]),
+                        energy_level=latest_checkin.get('energy_level', 5),
+                        mood=latest_checkin.get('mood'),
+                        sleep_quality=latest_checkin.get('sleep_quality'),
+                        focus_minutes=None,
+                        context=None,
+                        priorities=latest_checkin.get('focus_areas', []),
+                        day_of_week=datetime.utcnow().weekday(),
+                    )
+                    
+                    constraints_request = CheckInToConstraintsRequest(
+                        user_id=user_id,
+                        energy_level=checkin_obj.energy_level,
+                        focus_areas=checkin_obj.priorities if hasattr(checkin_obj, 'priorities') else [],
+                        check_in_data=checkin_obj,
+                        user_profile=state.user_profile or user_profile or UserProfileAnalysis(),
+                    )
                     state.selection_constraints = adapt_checkin_to_constraints(constraints_request)
-                    logger.info(f"📋 Using check-in constraints: energy={latest_checkin.get('energy_level')}")
+                    if not state.constraints:
+                        state.constraints = state.selection_constraints
+                    logger.info(f"📋 Using check-in constraints: energy={checkin_obj.energy_level}")
                 else:
                     # No check-in yet - use default balanced constraints
                     logger.info(f"📋 No check-in found, using default constraints")
@@ -241,46 +331,180 @@ class RaimonOrchestrator:
                         "avoid_tags": [],
                         "prefer_priority": None,
                     }
+                    if not state.constraints:
+                        state.constraints = state.selection_constraints
+            if not state.constraints:
+                try:
+                    recent_checkins = get_user_checkins(user_id, days=1)
+                    if recent_checkins:
+                        latest_checkin = recent_checkins[0]
+                        # Ensure user_profile is a proper Pydantic model
+                        profile_for_constraints = user_profile if user_profile else UserProfileAnalysis()
+                        checkin_obj = (
+                            latest_checkin
+                            if isinstance(latest_checkin, DailyCheckIn)
+                            else DailyCheckIn(
+                                date=latest_checkin.get("date", datetime.utcnow().isoformat().split("T")[0]),
+                                energy_level=latest_checkin.get("energy_level", 5),
+                                mood=latest_checkin.get("mood"),
+                                sleep_quality=latest_checkin.get("sleep_quality"),
+                                focus_minutes=latest_checkin.get("focus_minutes"),
+                                context=latest_checkin.get("context"),
+                                priorities=latest_checkin.get("focus_areas", []),
+                                day_of_week=datetime.utcnow().weekday(),
+                            )
+                        )
+                        constraints_request = CheckInToConstraintsRequest(
+                            user_id=user_id,
+                            energy_level=checkin_obj.energy_level,
+                            focus_areas=getattr(checkin_obj, "priorities", []),
+                            check_in_data=checkin_obj,
+                            user_profile=profile_for_constraints,
+                        )
+                        state.constraints = adapt_checkin_to_constraints(constraints_request)
+                except Exception as e:
+                    logger.warning(f"Could not fetch recent check-ins: {str(e)}")
 
             # Get task candidates
-            candidates = get_task_candidates(user_id, state.selection_constraints)
+            if state.constraints:
+                try:
+                    candidates = get_task_candidates(user_id, state.constraints)
+                    state.candidates = candidates if candidates else []
+                    
+                    # Select with LLM DoSelector + LLM Coach (with deterministic fallback)
+                    if state.candidates:
+                        try:
+                            llm_candidates = []
+                            for task in state.candidates[:20]:
+                                llm_candidates.append(
+                                    TaskCandidate(
+                                        id=str(task.get("id")),
+                                        title=task.get("title") or "Untitled task",
+                                        priority=task.get("priority", "medium"),
+                                        status=task.get("status", "todo"),
+                                        estimated_duration=task.get("estimated_duration"),
+                                        due_at=task.get("due_at") or task.get("deadline"),
+                                        tags=task.get("tags") or [],
+                                        created_at=task.get("created_at"),
+                                    )
+                                )
 
-            # Score candidates
-            priority_request = {
-                "candidates": candidates,
-                "user_profile": state.user_profile,
-            }
-            scored_candidates = score_task_priorities(priority_request)
+                            llm_constraints = (
+                                state.constraints
+                                if isinstance(state.constraints, SelectionConstraints)
+                                else SelectionConstraints(**state.constraints)
+                            )
 
-            # Select optimal task
-            selection_request = {
-                "scored_candidates": scored_candidates.scored_candidates,
-                "constraints": state.selection_constraints,
-            }
-            selection = select_optimal_task(selection_request)
+                            selector_output, selector_valid = llm_select_task(
+                                candidates=llm_candidates,
+                                constraints=llm_constraints,
+                                recent_actions={"context": getattr(event, "context", None)},
+                            )
 
-            # Generate coaching
-            coaching = generate_coaching_message(user_id, selection.selected_task, event.context)
+                            best_task = next(
+                                (
+                                    t
+                                    for t in state.candidates
+                                    if str(t.get("id")) == selector_output.task_id
+                                ),
+                                None,
+                            )
+                            if not best_task and state.candidates:
+                                best_task = state.candidates[0]
 
-            # Create active do
-            active_do = {
-                "user_id": user_id,
-                "task": selection.selected_task.task,
-                "selection_reason": selection.selection_reason,
-                "coaching_message": coaching.message,
-                "started_at": datetime.utcnow(),
-            }
-            save_active_do(active_do)
+                            if best_task:
+                                reason_codes = selector_output.reason_codes or ["fallback_best_overall"]
+                                selected_candidate = next(
+                                    (
+                                        c
+                                        for c in llm_candidates
+                                        if c.id == str(best_task.get("id"))
+                                    ),
+                                    llm_candidates[0],
+                                )
+                                coach_output, coach_valid = llm_generate_coaching_message(
+                                    task=selected_candidate,
+                                    reason_codes=reason_codes,
+                                    mode=llm_constraints.mode,
+                                )
 
-            state.active_do = active_do
+                                active_do_payload = {
+                                    "user_id": user_id,
+                                    "task": best_task.get("id"),
+                                    "selection_reason": ",".join(reason_codes),
+                                    "coaching_message": coach_output.message,
+                                    "started_at": datetime.utcnow().isoformat(),
+                                }
+                                self.storage.save_active_do(active_do_payload) if self.storage else None
+
+                                state.active_do = {
+                                    "task": best_task.get("id"),
+                                    "selection_reason": ",".join(reason_codes),
+                                    "reason_codes": reason_codes,
+                                    "alt_task_ids": selector_output.alt_task_ids,
+                                    "selector_valid": selector_valid,
+                                    "coach_valid": coach_valid,
+                                }
+                                state.coach_message = coach_output
+
+                                logger.info(
+                                    f"Selected task {best_task.get('id')} for user {user_id} "
+                                    f"(selector_valid={selector_valid}, coach_valid={coach_valid})"
+                                )
+                        except Exception as select_err:
+                            logger.warning(f"LLM selection failed, using deterministic fallback: {select_err}")
+                            try:
+                                scored = []
+                                for task in state.candidates[:20]:
+                                    priority_score = {"high": 3, "medium": 2, "low": 1}.get(task.get("priority", "medium"), 2)
+                                    duration_raw = task.get("estimated_duration", 60)
+                                    try:
+                                        duration = int(duration_raw) if duration_raw is not None else 60
+                                    except (TypeError, ValueError):
+                                        duration = 60
+                                    time_score = 3 if duration < 30 else (2 if duration < 120 else 1)
+                                    score = priority_score * 0.6 + time_score * 0.4
+                                    scored.append({"task": task, "score": score})
+
+                                scored.sort(key=lambda x: x["score"], reverse=True)
+                                if scored:
+                                    best_task = scored[0]["task"]
+                                    active_do_payload = {
+                                        "user_id": user_id,
+                                        "task": best_task.get("id"),
+                                        "selection_reason": "fallback_optimal_match",
+                                        "coaching_message": f"Ready to start {best_task.get('title', 'your task')}?",
+                                        "started_at": datetime.utcnow().isoformat(),
+                                    }
+                                    self.storage.save_active_do(active_do_payload) if self.storage else None
+                                    state.active_do = {
+                                        "task": best_task.get("id"),
+                                        "selection_reason": "fallback_optimal_match",
+                                        "reason_codes": ["fallback_best_overall"],
+                                        "alt_task_ids": [],
+                                        "selector_valid": False,
+                                        "coach_valid": False,
+                                    }
+                                    logger.info(f"Selected task {best_task.get('id')} for user {user_id} (fallback)")
+                            except Exception as fallback_err:
+                                logger.warning(f"Active_do fallback selection failed (non-blocking): {fallback_err}")
+                    else:
+                        logger.warning(
+                            f"No task candidates available for user {user_id}. "
+                            "Check constraints and task pool."
+                        )
+                except Exception as e:
+                    logger.warning(f"Could not fetch task candidates: {str(e)}")
+
             state.success = True
-
-            logger.info(f"🎯 Task selected for user {user_id}: {selection.selected_task.task.get('title')}")
+            logger.info(f"✅ Do next processed for user {user_id}")
 
         except Exception as e:
-            logger.error(f"❌ Task selection failed: {str(e)}")
+            logger.error(f"❌ Do next processing failed: {str(e)}", exc_info=True)
             state.success = False
-            state.error = f"Failed to select task: {str(e)}"
+            state.error = f"Failed to process do_next: {str(e)}"
+
+        return state
 
         return state
 
@@ -435,7 +659,7 @@ class RaimonOrchestrator:
         Returns:
             Agent response
         """
-        logger.info(f"🎭 Processing event: {type(event).__name__}")
+        logger.info(f"🎭 Processing event: {type(event).__name__} (type={type(event).__name__})")
 
         # Validate explicit event_type if present
         if hasattr(event, "event_type"):
@@ -456,7 +680,14 @@ class RaimonOrchestrator:
 
         try:
             # Execute graph
-            final_state = self.graph.invoke(initial_state)
+            final_state_result = self.graph.invoke(initial_state)
+            
+            # LangGraph can return either a dict or the actual state object
+            # Convert dict to GraphState if needed
+            if isinstance(final_state_result, dict):
+                final_state = GraphState(**final_state_result)
+            else:
+                final_state = final_state_result
 
             # Build response
             response = AgentMVPResponse(
@@ -467,17 +698,18 @@ class RaimonOrchestrator:
             if not final_state.success and final_state.error:
                 response.error = final_state.error
 
-            logger.info(f"✅ Event processed successfully: {final_state.success}")
+            logger.info(f"✅ Event processed successfully: success={final_state.success} response_type={type(response).__name__}")
             response_dict = response.model_dump()
             
             # Flatten event_type to root level for backward compatibility
             if "data" in response_dict and "event_type" in response_dict["data"]:
                 response_dict["event_type"] = response_dict["data"]["event_type"]
             
+            logger.debug(f"📊 Response dict keys: {list(response_dict.keys())}")
             return response_dict
 
         except Exception as e:
-            logger.error(f"❌ Orchestration failed: {str(e)}")
+            logger.error(f"❌ Orchestration failed: {str(e)}", exc_info=True)
             response_data = {"event_type": event_type} if event_type else {}
             response_dict = AgentMVPResponse(
                 success=False,
