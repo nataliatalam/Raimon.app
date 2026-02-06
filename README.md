@@ -44,5 +44,9 @@ export NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 # or add NEXT_PUBLIC_API_BASE_URL to .env.local
 npm run dev
 ```
-
+windows
+```bash
+$env:NEXT_PUBLIC_API_BASE_URL = "http://localhost:8000"
+npm run dev
+```
 Authentication requests, dashboard data, projects, and task actions will all be proxied to that backend URL.

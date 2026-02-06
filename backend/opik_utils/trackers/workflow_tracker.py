@@ -3,7 +3,7 @@ Track multi-step workflows with Opik
 """
 from typing import List, Dict, Any, Optional
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from opik_utils.client import get_opik_client
 
 
@@ -13,7 +13,7 @@ class WorkflowStep:
     def __init__(self, name: str, data: Dict[str, Any]):
         self.name = name
         self.data = data
-        self.timestamp = datetime.utcnow().isoformat()
+        self.timestamp = datetime.now(timezone.utc).isoformat()
         self.duration: Optional[float] = None
         self.status: str = "pending"  # pending, running, completed, failed
 

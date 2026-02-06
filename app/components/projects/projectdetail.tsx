@@ -44,6 +44,7 @@ interface Task {
   dependsOn?: string;
   blocker?: string;
   recurring?: string;
+  note?: string;
 }
 
 interface ProjectLink {
@@ -97,6 +98,21 @@ export default function ProjectDetailView({
   const [showCompleted, setShowCompleted] = useState(false);
   const [activeTab, setActiveTab] = useState<'tasks' | 'notes' | 'files' | 'activity'>('tasks');
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
+  const [editingTaskNote, setEditingTaskNote] = useState<string | null>(null);
+
+  // Links state
+  const [links, setLinks] = useState<ProjectLink[]>(project.links);
+  const [newLinkUrl, setNewLinkUrl] = useState('');
+  const [newLinkTitle, setNewLinkTitle] = useState('');
+
+  // Edit mode state
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editName, setEditName] = useState(project.name);
+  const [editDescription, setEditDescription] = useState(project.description);
+  const [editType, setEditType] = useState<'work' | 'personal'>(project.type);
+  const [editTimeframe, setEditTimeframe] = useState(project.timeframe);
+  const [editDeadline, setEditDeadline] = useState(project.deadline);
+  const [editMotivations, setEditMotivations] = useState<string[]>(project.motivations);
 
   // Track changes
   const [hasChanges, setHasChanges] = useState(false);
@@ -148,6 +164,49 @@ export default function ProjectDetailView({
       },
     ]);
     setNewTask('');
+  };
+
+  const updateTaskNote = (taskId: string, note: string) => {
+    setTasks(tasks.map((t) => (t.id === taskId ? { ...t, note } : t)));
+  };
+
+  const addLink = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newLinkUrl.trim()) return;
+    const newLink: ProjectLink = {
+      id: Date.now().toString(),
+      title: newLinkTitle.trim() || newLinkUrl.trim(),
+      url: newLinkUrl.trim(),
+      type: 'link',
+    };
+    setLinks([...links, newLink]);
+    setNewLinkUrl('');
+    setNewLinkTitle('');
+  };
+
+  const removeLink = (linkId: string) => {
+    setLinks(links.filter((l) => l.id !== linkId));
+  };
+
+  const toggleEditMode = () => {
+    if (isEditMode) {
+      // Reset to original values when canceling
+      setEditName(project.name);
+      setEditDescription(project.description);
+      setEditType(project.type);
+      setEditTimeframe(project.timeframe);
+      setEditDeadline(project.deadline);
+      setEditMotivations(project.motivations);
+    }
+    setIsEditMode(!isEditMode);
+  };
+
+  const toggleMotivation = (motivation: string) => {
+    setEditMotivations((prev) =>
+      prev.includes(motivation)
+        ? prev.filter((m) => m !== motivation)
+        : [...prev, motivation]
+    );
   };
 
   const handleSave = () => {
@@ -236,8 +295,12 @@ export default function ProjectDetailView({
               <button type="button" className={styles.actionBtn}>
                 <Pause size={14} /> Pause
               </button>
-              <button type="button" className={styles.actionBtn}>
-                <Edit3 size={14} /> Edit
+              <button
+                type="button"
+                className={`${styles.actionBtn} ${isEditMode ? styles.actionBtnActive : ''}`}
+                onClick={toggleEditMode}
+              >
+                <Edit3 size={14} /> {isEditMode ? 'Cancel' : 'Edit'}
               </button>
               {hasChanges && (
                 <button type="button" className={styles.saveBtn} onClick={handleSave}>
@@ -250,18 +313,104 @@ export default function ProjectDetailView({
           {/* Title + Progress */}
           <div className={styles.heroRow}>
             <div className={styles.heroContent}>
-              <div className={styles.badges}>
-                <span className={`${styles.typeBadge} ${project.type === 'work' ? styles.typeBadgeWork : styles.typeBadgePersonal}`}>
-                  {project.type}
-                </span>
-                {project.motivations.map((m) => (
-                  <span key={m} className={styles.motivationBadge}>
-                    <Flame size={12} /> {m}
-                  </span>
-                ))}
-              </div>
-              <h1 className={styles.title}>{project.name}</h1>
-              <p className={styles.description}>{project.description}</p>
+              {isEditMode ? (
+                <>
+                  {/* Edit Mode - Type Toggle */}
+                  <div className={styles.editTypeToggle}>
+                    <button
+                      type="button"
+                      className={`${styles.editTypeBtn} ${editType === 'work' ? styles.editTypeBtnActive : ''}`}
+                      onClick={() => setEditType('work')}
+                    >
+                      Work
+                    </button>
+                    <button
+                      type="button"
+                      className={`${styles.editTypeBtn} ${editType === 'personal' ? styles.editTypeBtnActive : ''}`}
+                      onClick={() => setEditType('personal')}
+                    >
+                      Personal
+                    </button>
+                  </div>
+
+                  {/* Edit Mode - Project Name */}
+                  <input
+                    type="text"
+                    className={styles.editTitleInput}
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder="Project name..."
+                  />
+
+                  {/* Edit Mode - Description */}
+                  <textarea
+                    className={styles.editDescriptionInput}
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    placeholder="Project description..."
+                    rows={2}
+                  />
+
+                  {/* Edit Mode - Motivations */}
+                  <div className={styles.editMotivationsSection}>
+                    <span className={styles.editLabel}>Why are you doing this?</span>
+                    <div className={styles.editMotivationsGrid}>
+                      {['Make money', 'Creative output', 'Health', 'Joy', 'Family', 'Growth'].map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          className={`${styles.editMotivationBtn} ${editMotivations.includes(m) ? styles.editMotivationBtnActive : ''}`}
+                          onClick={() => toggleMotivation(m)}
+                        >
+                          <Flame size={12} /> {m}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Edit Mode - Timeline & Deadline */}
+                  <div className={styles.editTimeSection}>
+                    <div className={styles.editField}>
+                      <span className={styles.editLabel}>Timeframe</span>
+                      <select
+                        className={styles.editSelect}
+                        value={editTimeframe}
+                        onChange={(e) => setEditTimeframe(e.target.value)}
+                      >
+                        <option value="Today">Today</option>
+                        <option value="This Week">This Week</option>
+                        <option value="This Month">This Month</option>
+                        <option value="Long-term">Long-term</option>
+                      </select>
+                    </div>
+                    <div className={styles.editField}>
+                      <span className={styles.editLabel}>Deadline</span>
+                      <input
+                        type="text"
+                        className={styles.editDeadlineInput}
+                        value={editDeadline}
+                        onChange={(e) => setEditDeadline(e.target.value)}
+                        placeholder="e.g., Dec 31"
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className={styles.badges}>
+                    <span className={`${styles.typeBadge} ${project.type === 'work' ? styles.typeBadgeWork : styles.typeBadgePersonal}`}>
+                      {project.type}
+                    </span>
+                    {project.motivations.map((m) => (
+                      <span key={m} className={styles.motivationBadge}>
+                        <Flame size={12} /> {m}
+                      </span>
+                    ))}
+                  </div>
+                  <h1 className={styles.title}>{project.name}</h1>
+                  <p className={styles.description}>{project.description}</p>
+                </>
+              )}
             </div>
 
             {/* Progress Ring */}
@@ -384,13 +533,26 @@ export default function ProjectDetailView({
                         </div>
                       </div>
 
-                      {(task.subtasks?.length > 0 || task.blocker) && (
+                      {(task.subtasks?.length > 0 || task.blocker || task.note !== undefined) && (
                         <button
                           type="button"
                           className={styles.expandBtn}
                           onClick={() => setExpandedTask(isExpanded ? null : task.id)}
                         >
                           {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                        </button>
+                      )}
+                      {!task.note && task.note !== '' && !isExpanded && (
+                        <button
+                          type="button"
+                          className={styles.addNoteBtn}
+                          onClick={() => {
+                            setExpandedTask(task.id);
+                            setEditingTaskNote(task.id);
+                          }}
+                          title="Add note"
+                        >
+                          <FileText size={14} />
                         </button>
                       )}
                     </div>
@@ -407,6 +569,51 @@ export default function ProjectDetailView({
                             </div>
                           </div>
                         )}
+
+                        {/* Task Note Section */}
+                        <div className={styles.taskNoteSection}>
+                          <div className={styles.taskNoteHeader}>
+                            <FileText size={14} />
+                            <span>Note</span>
+                            <button
+                              type="button"
+                              className={styles.taskNoteCloseBtn}
+                              onClick={() => setExpandedTask(null)}
+                              title="Close"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                          {editingTaskNote === task.id ? (
+                            <div className={styles.taskNoteEdit}>
+                              <textarea
+                                className={styles.taskNoteInput}
+                                value={task.note || ''}
+                                onChange={(e) => updateTaskNote(task.id, e.target.value)}
+                                placeholder="Add a note for this task..."
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                className={styles.taskNoteSaveBtn}
+                                onClick={() => setEditingTaskNote(null)}
+                              >
+                                Done
+                              </button>
+                            </div>
+                          ) : (
+                            <div
+                              className={styles.taskNoteDisplay}
+                              onClick={() => setEditingTaskNote(task.id)}
+                            >
+                              {task.note ? (
+                                <p className={styles.taskNoteText}>{task.note}</p>
+                              ) : (
+                                <p className={styles.taskNotePlaceholder}>Click to add a note...</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
 
                         {task.subtasks?.length > 0 && (
                           <div className={styles.subtaskSection}>
@@ -492,15 +699,17 @@ export default function ProjectDetailView({
         {/* Files Tab */}
         {activeTab === 'files' && (
           <div className={styles.card}>
+            {/* Files Section */}
+            <div className={styles.filesSectionHeader}>Files</div>
             <div className={styles.filesGrid}>
-              {project.links.map((link) => (
+              {links.filter((l) => l.type === 'file').map((link) => (
                 <a key={link.id} href={link.url} className={styles.fileCard}>
-                  <div className={`${styles.fileIcon} ${link.type === 'file' ? styles.fileIconDoc : styles.fileIconLink}`}>
-                    {link.type === 'file' ? <FileText size={20} /> : <LinkIcon size={20} />}
+                  <div className={`${styles.fileIcon} ${styles.fileIconDoc}`}>
+                    <FileText size={20} />
                   </div>
                   <div className={styles.fileMeta}>
                     <div className={styles.fileTitle}>{link.title}</div>
-                    <div className={styles.fileType}>{link.type === 'file' ? 'Document' : 'Link'}</div>
+                    <div className={styles.fileType}>Document</div>
                   </div>
                 </a>
               ))}
@@ -510,6 +719,61 @@ export default function ProjectDetailView({
               <p>
                 Drop files or <span>browse</span>
               </p>
+            </div>
+
+            {/* Links Section */}
+            <div className={styles.linksSectionHeader}>
+              <LinkIcon size={16} />
+              <span>Links</span>
+            </div>
+
+            {/* Add Link Form */}
+            <form onSubmit={addLink} className={styles.addLinkForm}>
+              <input
+                type="text"
+                className={styles.addLinkInput}
+                placeholder="https://"
+                value={newLinkUrl}
+                onChange={(e) => setNewLinkUrl(e.target.value)}
+              />
+              <input
+                type="text"
+                className={styles.addLinkTitleInput}
+                placeholder="Title (optional)"
+                value={newLinkTitle}
+                onChange={(e) => setNewLinkTitle(e.target.value)}
+              />
+              <button type="submit" className={styles.addLinkBtn}>
+                Add
+              </button>
+            </form>
+
+            {/* Links List */}
+            <div className={styles.linksGrid}>
+              {links.filter((l) => l.type === 'link').length === 0 && (
+                <p className={styles.noLinksText}>No links added yet</p>
+              )}
+              {links.filter((l) => l.type === 'link').map((link) => (
+                <div key={link.id} className={styles.linkCard}>
+                  <a href={link.url} target="_blank" rel="noopener noreferrer" className={styles.linkContent}>
+                    <div className={`${styles.fileIcon} ${styles.fileIconLink}`}>
+                      <LinkIcon size={20} />
+                    </div>
+                    <div className={styles.fileMeta}>
+                      <div className={styles.fileTitle}>{link.title}</div>
+                      <div className={styles.linkUrl}>{link.url}</div>
+                    </div>
+                  </a>
+                  <button
+                    type="button"
+                    className={styles.removeLinkBtn}
+                    onClick={() => removeLink(link.id)}
+                    title="Remove link"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
         )}

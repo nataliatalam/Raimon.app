@@ -3,7 +3,7 @@ Helper functions for Opik tracking and formatting
 """
 from typing import Dict, Any, Optional
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def format_trace_data(data: Dict[str, Any], indent: int = 2) -> str:
@@ -62,7 +62,7 @@ def extract_metadata(request_data: Dict[str, Any]) -> Dict[str, Any]:
         True
     """
     return {
-        "timestamp": request_data.get("timestamp", datetime.utcnow().isoformat()),
+        "timestamp": request_data.get("timestamp", datetime.now(timezone.utc).isoformat()),
         "user_id": request_data.get("user_id"),
         "session_id": request_data.get("session_id"),
         "request_id": request_data.get("request_id"),
@@ -99,7 +99,7 @@ def build_trace_context(
     """
     return {
         "operation": operation,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "input": input_data,
         "output": output_data,
         "metadata": metadata or {},

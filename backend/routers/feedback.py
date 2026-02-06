@@ -5,7 +5,7 @@ Tracks user satisfaction and acceptance rates using Opik
 from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel, Field
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from core.security import get_current_user
@@ -68,7 +68,7 @@ async def log_agent_feedback(
                 "user_id": current_user.get("id"),
                 "agent_name": feedback.agent_name,
                 "accepted": feedback.accepted,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
         )
 
@@ -200,7 +200,7 @@ async def get_agent_stats(agent_name: str, current_user: dict = Depends(get_curr
 #                 "user_id": current_user["id"],
 #                 "agent_name": feedback.agent_name,
 #                 "accepted": feedback.accepted,
-#                 "timestamp": datetime.utcnow().isoformat()
+#                 "timestamp": datetime.now(timezone.utc).isoformat()
 #             }
 #         )
 
@@ -267,7 +267,7 @@ async def get_agent_stats(agent_name: str, current_user: dict = Depends(get_curr
 #                 metadata={
 #                     "task_id": feedback.task_id,
 #                     "user_id": current_user["id"],
-#                     "timestamp": datetime.utcnow().isoformat()
+#                     "timestamp": datetime.now(timezone.utc).isoformat()
 #                 }
 #             )
 

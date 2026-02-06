@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ProjectCard from './projects/components/ProjectCard';
 import Graveyard from './projects/components/Graveyard';
+import InfoSection from './projects/components/InfoSection';
+import SectionHeader from './projects/components/SectionHeader';
 import type { Project, GraveyardProject, Flower } from './projects/types';
 import styles from './projects/ProjectsPage.module.css';
 import { useSession } from './providers/SessionProvider';
@@ -253,18 +255,21 @@ export default function ProjectsPage() {
             </h1>
           </div>
 
-          {error && <div className={styles.errorBanner}>{error}</div>}
+          <InfoSection />
         </header>
+
+        {error && <div className={styles.errorBanner}>{error}</div>}
 
         {loading ? (
           <div className={styles.loadingState}>Syncing projects…</div>
         ) : (
           <>
             <section className={styles.section}>
-              <div className={styles.sectionHead}>
-                <h2>Active</h2>
-                <span>{activeProjects.length}</span>
-              </div>
+              <SectionHeader
+                title="Active"
+                count={activeProjects.length}
+                variant="active"
+              />
               <div className={styles.cards}>
                 {activeProjects.length === 0 ? (
                   <div className={styles.emptyState}>No active projects yet.</div>
@@ -285,10 +290,11 @@ export default function ProjectsPage() {
             </section>
 
             <section className={styles.section}>
-              <div className={styles.sectionHead}>
-                <h2>Paused</h2>
-                <span>{pausedProjects.length}</span>
-              </div>
+              <SectionHeader
+                title="Paused"
+                count={pausedProjects.length}
+                variant="paused"
+              />
               <div className={styles.cards}>
                 {pausedProjects.length === 0 ? (
                   <div className={styles.emptyState}>No paused projects.</div>
@@ -309,10 +315,11 @@ export default function ProjectsPage() {
             </section>
 
             <section className={styles.section}>
-              <div className={styles.sectionHead}>
-                <h2>Beyond</h2>
-                <span>{completedProjects.length}</span>
-              </div>
+              <SectionHeader
+                title="Beyond"
+                count={completedProjects.length}
+                variant="beyond"
+              />
               <div className={styles.cards}>
                 {completedProjects.length === 0 ? (
                   <div className={styles.emptyState}>Finish a project to celebrate here.</div>

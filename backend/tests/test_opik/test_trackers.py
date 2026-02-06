@@ -15,13 +15,14 @@ from opik_utils.trackers import AgentTracker, LLMTracker, WorkflowTracker
 
 
 @pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_agent_tracker_initialization():
     """Test AgentTracker initialization"""
     tracker = AgentTracker(agent_name="test_agent")
     assert tracker.agent_name == "test_agent"
     assert tracker.start_time is None
 
-
+@pytest.mark.anyio
 @pytest.mark.asyncio
 async def test_agent_tracker_start():
     """Test AgentTracker start method"""
@@ -31,7 +32,7 @@ async def test_agent_tracker_start():
     assert tracker.input_data == {"test": "data"}
     assert tracker.trace_id is not None
 
-
+@pytest.mark.anyio
 def test_llm_tracker_initialization():
     """Test LLMTracker initialization"""
     tracker = LLMTracker(model_name="gemini-2.0-flash")
@@ -39,7 +40,7 @@ def test_llm_tracker_initialization():
     assert tracker.total_tokens == 0
     assert tracker.total_cost == 0.0
 
-
+@pytest.mark.anyio
 @pytest.mark.asyncio
 async def test_llm_tracker_generation():
     """Test LLMTracker track_generation method"""
@@ -52,7 +53,7 @@ async def test_llm_tracker_generation():
     assert tracker.total_tokens == 100
     assert tracker.total_cost > 0
 
-
+@pytest.mark.anyio
 @pytest.mark.asyncio
 async def test_workflow_tracker_initialization():
     """Test WorkflowTracker initialization"""
@@ -61,7 +62,7 @@ async def test_workflow_tracker_initialization():
     assert tracker.status == "not_started"
     assert len(tracker.steps) == 0
 
-
+@pytest.mark.anyio
 @pytest.mark.asyncio
 async def test_workflow_tracker_flow():
     """Test complete workflow tracking flow"""

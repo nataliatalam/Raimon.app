@@ -4,8 +4,9 @@ from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 import logging
 import time
+import os
 from routers import auth, users, projects, tasks, next_do, dashboard, analytics, notifications, reminders, integrations, feedback
-from routers.agents import router as agents_router
+from routers import agents_management
 from routers import agent_mvp
 from core.config import get_settings
 from opik_utils.middleware import OpikMiddleware
@@ -132,9 +133,36 @@ app.include_router(analytics.router)
 app.include_router(notifications.router)
 app.include_router(reminders.router)
 app.include_router(integrations.router)
-app.include_router(agents_router)
+app.include_router(agents_management.router)
 app.include_router(agent_mvp.router)
 app.include_router(feedback.router)
+
+
+# Startup event to log Opik configuration
+@app.on_event("startup")
+async def startup_event():
+    """Log startup configuration for observability."""
+    opik_key_set = bool(os.getenv('OPIK_API_KEY'))
+    opik_project = os.getenv('OPIK_PROJECT_NAME', 'raimon')
+    opik_workspace = os.getenv('OPIK_WORKSPACE', 'default')
+    supabase_service_role_set = bool(os.getenv('SUPABASE_SERVICE_ROLE_KEY'))
+    
+    print()
+    print("="*60)
+    print("🚀 Raimon API Startup")
+    print("="*60)
+    print(f"📊 Opik Tracing: {'✅ ENABLED' if opik_key_set else '⚠️  DISABLED'}")
+    print(f"   - Project: {opik_project}")
+    print(f"   - Workspace: {opik_workspace}")
+    print(f"   - API Key: {'Set' if opik_key_set else 'Not Set'}")
+    print(f"🗄️  Supabase Service Role: {'✅ SET' if supabase_service_role_set else '⚠️  NOT SET'}")
+    print("="*60)
+    print()
+
+    if not supabase_service_role_set:
+        logger.warning(
+            "SUPABASE_SERVICE_ROLE_KEY is not set; agent writes will use anon client and may hit RLS."
+        )
 
 
 @app.get("/")

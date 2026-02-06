@@ -3,9 +3,12 @@
 /* ─────────────────────────────────────────────────────────── */
 
 .page {
-  min-height: 100vh;
+  min-height: 100%;
   background: #F9F8F4;
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  border-radius: 102px 0 0 0;
+  margin: -32px;
+  padding: 32px;
 }
 
 .container {
@@ -954,5 +957,473 @@
 
 .activityTime {
   font-size: 12px;
+  color: #B5B5B5;
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* Task Notes                                                   */
+/* ─────────────────────────────────────────────────────────── */
+
+.addNoteBtn {
+  background: none;
+  border: none;
+  color: #B5B5B5;
+  cursor: pointer;
+  padding: 4px;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.addNoteBtn:hover {
+  color: #6B6B6B;
+  opacity: 1;
+}
+
+.taskNoteSection {
+  margin-top: 16px;
+  padding: 12px;
+  background: #FAFAF8;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.taskNoteHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #B5B5B5;
+  text-transform: uppercase;
+}
+
+.taskNoteCloseBtn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: #B5B5B5;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.taskNoteCloseBtn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #1A1A1A;
+}
+
+.taskNoteEdit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.taskNoteInput {
+  width: 100%;
+  min-height: 60px;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid #EBE8E0;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #1A1A1A;
+  resize: vertical;
+  font-family: inherit;
+  outline: none;
+}
+
+.taskNoteInput:focus {
+  border-color: #1A1A1A;
+}
+
+.taskNoteInput::placeholder {
+  color: #B5B5B5;
+}
+
+.taskNoteSaveBtn {
+  align-self: flex-end;
+  padding: 6px 14px;
+  background: #1A1A1A;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+}
+
+.taskNoteSaveBtn:hover {
+  background: #333;
+}
+
+.taskNoteDisplay {
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.taskNoteDisplay:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.taskNoteText {
+  margin: 0;
+  font-size: 13px;
+  color: #1A1A1A;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.taskNotePlaceholder {
+  margin: 0;
+  font-size: 13px;
+  color: #B5B5B5;
+  font-style: italic;
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* Files Tab - Links Section                                    */
+/* ─────────────────────────────────────────────────────────── */
+
+.filesSectionHeader {
+  font-size: 12px;
+  font-weight: 600;
+  color: #B5B5B5;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 12px;
+}
+
+.linksSectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #B5B5B5;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 24px 0 12px 0;
+  padding-top: 20px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.addLinkForm {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.addLinkInput {
+  flex: 1;
+  padding: 10px 14px;
+  background: #F5F3ED;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #1A1A1A;
+  outline: none;
+}
+
+.addLinkInput:focus {
+  background: #fff;
+  box-shadow: 0 0 0 2px #1A1A1A;
+}
+
+.addLinkInput::placeholder {
+  color: #B5B5B5;
+}
+
+.addLinkTitleInput {
+  width: 150px;
+  padding: 10px 14px;
+  background: #F5F3ED;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #1A1A1A;
+  outline: none;
+}
+
+.addLinkTitleInput:focus {
+  background: #fff;
+  box-shadow: 0 0 0 2px #1A1A1A;
+}
+
+.addLinkTitleInput::placeholder {
+  color: #B5B5B5;
+}
+
+.addLinkBtn {
+  padding: 10px 20px;
+  background: #1A1A1A;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+}
+
+.addLinkBtn:hover {
+  background: #333;
+}
+
+.linksGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.noLinksText {
+  font-size: 13px;
+  color: #B5B5B5;
+  font-style: italic;
+  text-align: center;
+  padding: 16px;
+}
+
+.linkCard {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #F5F3ED;
+  border-radius: 12px;
+}
+
+.linkContent {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  min-width: 0;
+}
+
+.linkContent:hover .fileTitle {
+  color: #22C55E;
+}
+
+.linkUrl {
+  font-size: 12px;
+  color: #B5B5B5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
+.removeLinkBtn {
+  background: none;
+  border: none;
+  color: #B5B5B5;
+  cursor: pointer;
+  padding: 4px;
+  opacity: 0.6;
+  transition: all 0.2s;
+}
+
+.removeLinkBtn:hover {
+  color: #EF4444;
+  opacity: 1;
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* Edit Mode                                                    */
+/* ─────────────────────────────────────────────────────────── */
+
+.actionBtnActive {
+  background: #1A1A1A;
+  color: #fff;
+  border-color: #1A1A1A;
+}
+
+.actionBtnActive:hover {
+  background: #333;
+}
+
+.editTypeToggle {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.editTypeBtn {
+  padding: 6px 16px;
+  background: #F5F3ED;
+  border: none;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6B6B6B;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.editTypeBtn:hover {
+  background: #EBE9E1;
+}
+
+.editTypeBtnActive {
+  background: #1A1A1A;
+  color: #fff;
+}
+
+.editTypeBtnActive:hover {
+  background: #333;
+}
+
+.editTitleInput {
+  width: 100%;
+  padding: 12px 0;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid #EBE8E0;
+  outline: none;
+  font-size: 32px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  color: #1A1A1A;
+  margin-bottom: 12px;
+  transition: border-color 0.2s;
+}
+
+.editTitleInput:focus {
+  border-bottom-color: #1A1A1A;
+}
+
+.editTitleInput::placeholder {
+  color: #B5B5B5;
+}
+
+.editDescriptionInput {
+  width: 100%;
+  padding: 12px;
+  background: #F5F3ED;
+  border: none;
+  border-radius: 12px;
+  outline: none;
+  font-size: 15px;
+  color: #1A1A1A;
+  line-height: 1.5;
+  resize: none;
+  font-family: inherit;
+  margin-bottom: 16px;
+}
+
+.editDescriptionInput:focus {
+  background: #fff;
+  box-shadow: 0 0 0 2px #1A1A1A;
+}
+
+.editDescriptionInput::placeholder {
+  color: #B5B5B5;
+}
+
+.editMotivationsSection {
+  margin-bottom: 16px;
+}
+
+.editLabel {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #B5B5B5;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+}
+
+.editMotivationsGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.editMotivationBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: #F5F3ED;
+  border: none;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6B6B6B;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.editMotivationBtn:hover {
+  background: #EBE9E1;
+}
+
+.editMotivationBtnActive {
+  background: rgba(249, 115, 22, 0.1);
+  color: #F97316;
+}
+
+.editMotivationBtnActive:hover {
+  background: rgba(249, 115, 22, 0.15);
+}
+
+.editTimeSection {
+  display: flex;
+  gap: 16px;
+}
+
+.editField {
+  flex: 1;
+}
+
+.editSelect {
+  width: 100%;
+  padding: 10px 14px;
+  background: #F5F3ED;
+  border: none;
+  border-radius: 10px;
+  outline: none;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1A1A1A;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6B6B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+}
+
+.editSelect:focus {
+  background-color: #fff;
+  box-shadow: 0 0 0 2px #1A1A1A;
+}
+
+.editDeadlineInput {
+  width: 100%;
+  padding: 10px 14px;
+  background: #F5F3ED;
+  border: none;
+  border-radius: 10px;
+  outline: none;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1A1A1A;
+}
+
+.editDeadlineInput:focus {
+  background: #fff;
+  box-shadow: 0 0 0 2px #1A1A1A;
+}
+
+.editDeadlineInput::placeholder {
   color: #B5B5B5;
 }

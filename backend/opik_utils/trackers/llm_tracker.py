@@ -3,7 +3,7 @@ Specialized tracker for LLM calls and token usage
 """
 from typing import Dict, Any, Optional
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from opik_utils.client import get_opik_client
 
 
@@ -64,7 +64,7 @@ class LLMTracker:
             tokens_used: Number of tokens used (if available)
             metadata: Additional metadata (temperature, top_p, etc.)
         """
-        timestamp = datetime.utcnow().isoformat()
+        timestamp = datetime.now(timezone.utc).isoformat()
 
         if tokens_used:
             self.total_tokens += tokens_used
@@ -137,7 +137,7 @@ class LLMTracker:
             "model_name": self.model_name,
             "total_tokens": self.total_tokens,
             "total_cost": self.total_cost,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     def reset(self) -> None:

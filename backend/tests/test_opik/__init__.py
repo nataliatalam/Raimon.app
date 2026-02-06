@@ -1,3 +1,5 @@
 """
-Tests for Opik integration
+Opik observability tests.
+
+Tests for evaluators, metrics, and dashboards.
 """

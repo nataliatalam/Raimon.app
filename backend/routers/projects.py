@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Optional, List
 from uuid import UUID
 import json
+import logging
 from models.project import (
     ProjectCreate,
     ProjectUpdate,
@@ -15,6 +16,7 @@ from models.project import (
 )
 from core.supabase import get_supabase, get_supabase_admin
 from core.security import get_current_user
+from opik import track
 import logging
 
 logger = logging.getLogger(__name__)
@@ -137,6 +139,7 @@ async def list_projects(
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
+@track(name="project_create_endpoint")
 async def create_project(
     request: ProjectCreate,
     current_user: dict = Depends(get_current_user),
@@ -172,6 +175,9 @@ async def create_project(
 
         project = response.data[0]
 
+        # Log project creation for potential agent processing
+        logger.info(f"🤖 PROJECT_CREATED user_id={current_user['id']} project_id={project['id']} project_name={project['name']}")
+
         # Create project_details record if details provided
         if request.details:
             # Only include known columns to avoid schema errors
@@ -184,6 +190,24 @@ async def create_project(
                     **filtered_details,
                 }
                 supabase.table("project_details").insert(details_data).execute()
+
+            # Create tasks if provided in details
+            tasks_list = request.details.get("tasks", [])
+            logger.info(f"Creating project with tasks: {tasks_list}")
+            if tasks_list and isinstance(tasks_list, list):
+                for task_title in tasks_list:
+                    if isinstance(task_title, str) and task_title.strip():
+                        task_data = {
+                            "project_id": project["id"],
+                            "user_id": current_user["id"],
+                            "title": task_title.strip(),
+                            "status": "todo",
+                        }
+                        try:
+                            result = supabase.table("tasks").insert(task_data).execute()
+                            logger.info(f"Created task: {task_title} -> {result.data}")
+                        except Exception as task_err:
+                            logger.error(f"Failed to create task '{task_title}': {task_err}", exc_info=True)
 
         return {
             "success": True,
@@ -306,6 +330,7 @@ async def get_project(
 
 
 @router.put("/{project_id}")
+@track(name="project_update_endpoint")
 async def update_project(
     project_id: UUID,
     request: ProjectUpdate,
@@ -424,13 +449,49 @@ async def update_project(
                 tasks_to_delete = existing_task_ids - request_task_ids
                 for task_id in tasks_to_delete:
                     supabase.table("tasks").delete().eq("id", task_id).execute()
+
+                # Auto-complete project if all tasks are completed
+                if request.tasks:
+                    all_completed = all(task.completed for task in request.tasks)
+                    has_tasks = len(request.tasks) > 0
+
+                    if has_tasks and all_completed:
+                        # Set project status to completed
+                        supabase.table("projects").update(
+                            {"status": "completed"}
+                        ).eq("id", str(project_id)).execute()
+                        logger.info(f"Project {project_id} auto-completed - all tasks done")
+                    elif has_tasks and not all_completed:
+                        # If project was completed but now has incomplete tasks, reactivate it
+                        current_project = (
+                            supabase.table("projects")
+                            .select("status")
+                            .eq("id", str(project_id))
+                            .single()
+                            .execute()
+                        )
+                        if current_project.data and current_project.data.get("status") == "completed":
+                            supabase.table("projects").update(
+                                {"status": "active"}
+                            ).eq("id", str(project_id)).execute()
+                            logger.info(f"Project {project_id} reactivated - has incomplete tasks")
+
             except Exception as tasks_err:
                 logger.error(f"Failed to save tasks: {tasks_err}", exc_info=True)
                 # Continue without failing - but log the full error
 
+        # Fetch the updated project to return current state (including auto-completed status)
+        updated_project = (
+            supabase.table("projects")
+            .select("*")
+            .eq("id", str(project_id))
+            .single()
+            .execute()
+        )
+
         return {
             "success": True,
-            "data": {"project": project_result},
+            "data": {"project": updated_project.data if updated_project.data else project_result},
         }
     except HTTPException:
         raise
@@ -1054,6 +1115,22 @@ async def create_project_with_files(
                         **filtered_details,
                     }
                     supabase.table("project_details").insert(details_data).execute()
+
+                # Create tasks if provided in details
+                tasks_list = details_dict.get("tasks", [])
+                if tasks_list and isinstance(tasks_list, list):
+                    for task_title in tasks_list:
+                        if isinstance(task_title, str) and task_title.strip():
+                            task_data = {
+                                "project_id": project["id"],
+                                "user_id": current_user["id"],
+                                "title": task_title.strip(),
+                                "status": "todo",
+                            }
+                            try:
+                                supabase.table("tasks").insert(task_data).execute()
+                            except Exception as task_err:
+                                logger.warning(f"Failed to create task: {task_err}")
             except json.JSONDecodeError:
                 logger.warning(f"Invalid JSON in details field: {details}")
 

@@ -3,7 +3,7 @@ Specialized tracker for agent execution and performance
 """
 from typing import Dict, Any, Optional
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from opik_utils.client import get_opik_client
 
 
@@ -118,5 +118,5 @@ class AgentTracker:
             "duration": duration,
             "input_size": len(str(self.input_data)) if self.input_data else 0,
             "output_size": len(str(self.output_data)) if self.output_data else 0,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }

@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import styles from './RaimonShell.module.css';
-import { Home, Folder, Plus, LogOut, ChevronLeft, Menu, X } from 'lucide-react';
+import { Home, Folder, Plus, LogOut, ChevronLeft, Menu, X, Settings } from 'lucide-react';
 import { useSession } from './providers/SessionProvider';
 import { createClient } from '../../lib/supabase/client';
 
@@ -155,6 +155,16 @@ export default function RaimonShell({ children }: { children: React.ReactNode })
           >
             <Folder />
             <span>My Projects</span>
+          </Link>
+
+          <Link
+            href="/settings"
+            className={`${styles.navItem} ${isActive('/settings') ? styles.navItemActive : ''}`}
+            data-tooltip="Settings"
+            onClick={() => setMobileOpen(false)}
+          >
+            <Settings />
+            <span>Settings</span>
           </Link>
 
           <button

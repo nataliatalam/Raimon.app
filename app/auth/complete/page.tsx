@@ -7,7 +7,7 @@ import { apiFetch } from '../../../lib/api-client';
 import { createClient } from '../../../lib/supabase/client';
 import type { ApiSuccessResponse } from '../../../types/api';
 
-export default function AuthCompletePage() {
+function AuthCompleteContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { setSession } = useSession();
@@ -73,4 +73,22 @@ export default function AuthCompletePage() {
   }, [supabase, setSession, searchParams]);
 
   return <div style={{ padding: 24, opacity: 0.8 }}>Completing sign in...</div>;
+}
+
+import { Suspense } from "react";
+
+export const dynamic = "force-dynamic";
+
+export default function AuthCompletePage() {
+  return (
+    <Suspense
+      fallback={
+        <div style={{ padding: 24, opacity: 0.8 }}>
+          Completing sign in…
+        </div>
+      }
+    >
+      <AuthCompleteContent />
+    </Suspense>
+  );
 }

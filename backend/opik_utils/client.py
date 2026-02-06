@@ -46,15 +46,15 @@ class OpikManager:
             self._opik_client = Opik()
         else:
             self._opik_client = None
-            print("⚠️ Opik API key not configured - observability disabled")
+            print("[WARNING] Opik API key not configured - observability disabled")
 
         # Initialize Gemini Client only if API key is available
         if settings.google_api_key:
             self._raw_client = genai.Client(api_key=settings.google_api_key)
-            print("✅ Gemini (2026 SDK) initialized successfully")
+            print("[INFO] Gemini (2026 SDK) initialized successfully")
         else:
             self._raw_client = None
-            print("⚠️ Google API key not configured - Gemini disabled")
+            print("[WARNING] Google API key not configured - Gemini disabled")
 
     @property
     def opik(self):

@@ -3,7 +3,7 @@ Error tracking and alerting for Opik observability
 Monitors critical metrics and triggers alerts
 """
 from typing import Dict, Any, Optional, List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from opik_utils.client import get_opik_client
 import logging
 
@@ -67,7 +67,7 @@ class AlertManager:
         """
         try:
             # Query Opik for traces in time window
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
             start_time = end_time - timedelta(minutes=time_window_minutes)
 
             # This is a placeholder - adjust based on actual Opik API
@@ -174,7 +174,7 @@ class AlertManager:
         """
         try:
             if date is None:
-                date = datetime.utcnow().date().isoformat()
+                date = datetime.now(timezone.utc).date().isoformat()
 
             # Query Opik for cost metrics
             # This is a placeholder - adjust based on actual Opik API
@@ -285,7 +285,7 @@ class AlertManager:
             "value": value,
             "threshold": threshold,
             "message": message,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             **kwargs
         }
 

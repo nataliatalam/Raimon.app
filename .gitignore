@@ -64,3 +64,8 @@ node_modules/
 .env
 .env.*
 !.env.example
+
+# logs
+logs/
+backend/logs/
+*.log
