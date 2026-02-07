@@ -2,25 +2,114 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ArrowRight } from 'lucide-react';
 import DailyCheckIn from '../../components/DailyCheckIn';
 import TasksPage, { Task } from '../../components/TasksPage';
 import type { DaySummaryData } from '../../components/DaySummary';
+import HomeDashboard from '../../components/HomeDashboard';
+import ProjectFilter from '../../components/ProjectFilter';
+import type { CalendarEvent } from '../../components/calendar/types';
 import { apiFetch, ApiError } from '../../../lib/api-client';
-import type { ApiSuccessResponse, DashboardSummaryPayload, DashboardTasksPayload, DashboardTask } from '../../../types/api';
+import type {
+  ApiSuccessResponse,
+  DashboardSummaryPayload,
+  DashboardTasksPayload,
+  DashboardTask,
+  ProjectApiRecord,
+} from '../../../types/api';
 import { storeActiveTask } from '../../../lib/activeTask';
 import { useSession } from '../../components/providers/SessionProvider';
+
+const EVENTS_STORAGE_KEY = 'raimon_calendar_events';
+
+function loadStoredEvents(): CalendarEvent[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const payload = window.localStorage.getItem(EVENTS_STORAGE_KEY);
+    if (!payload) return [];
+    const parsed = JSON.parse(payload) as Array<Record<string, unknown>>;
+    return parsed.map((event) => ({
+      id: String(event.id ?? `evt_${Math.random()}`),
+      title: String(event.title ?? 'Untitled'),
+      startTime: new Date(String(event.startTime)),
+      endTime: new Date(String(event.endTime)),
+      project: typeof event.project === 'string' ? event.project : undefined,
+      projectId: typeof event.projectId === 'string' ? event.projectId : undefined,
+      category: (event.category as CalendarEvent['category']) ?? 'OTHER',
+      source: (event.source as CalendarEvent['source']) ?? 'manual',
+      relatedId: typeof event.relatedId === 'string' ? event.relatedId : undefined,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function buildDeadlineEvents(records: ProjectApiRecord[]): CalendarEvent[] {
+  const results: CalendarEvent[] = [];
+
+  const coerceRange = (value: string | null | undefined) => {
+    if (!value) return null;
+    const iso = value.includes('T') ? value : `${value}T09:00:00`;
+    const start = new Date(iso);
+    if (Number.isNaN(start.getTime())) return null;
+    const end = new Date(start);
+    end.setHours(end.getHours() + 1);
+    return { start, end };
+  };
+
+  records.forEach((record) => {
+    const category: CalendarEvent['category'] = record.icon === 'personal' ? 'PERSONAL' : 'WORK';
+    const projectDeadline = record.target_end_date ?? record.deadline ?? null;
+    if (projectDeadline) {
+      const range = coerceRange(projectDeadline);
+      if (range) {
+        results.push({
+          id: `project-deadline-${record.id}`,
+          title: `${record.name} deadline`,
+          startTime: range.start,
+          endTime: range.end,
+          project: record.name,
+          projectId: record.id,
+          category,
+          source: 'project-deadline',
+          relatedId: record.id,
+        });
+      }
+    }
+
+    (record.task_deadlines ?? []).forEach((task) => {
+      if (!task.deadline || task.status === 'completed') return;
+      const range = coerceRange(task.deadline);
+      if (!range) return;
+      results.push({
+        id: `task-deadline-${task.id}`,
+        title: `${task.title} due`,
+        startTime: range.start,
+        endTime: range.end,
+        project: record.name,
+        projectId: record.id,
+        category,
+        source: 'task-deadline',
+        relatedId: task.id ?? undefined,
+      });
+    });
+  });
+
+  return results;
+}
 
 export default function DashboardPage() {
   const router = useRouter();
   const { session, status } = useSession();
-  const [stage, setStage] = useState<'checkin' | 'tasks'>('checkin');
+  const [stage, setStage] = useState<'checkin' | 'home' | 'tasks'>('checkin');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [tasksError, setTasksError] = useState('');
   const [summaryData, setSummaryData] = useState<DaySummaryData | undefined>(undefined);
   const [streakCount, setStreakCount] = useState(0);
+  const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
+  const [nextEvent, setNextEvent] = useState<CalendarEvent | null>(null);
 
-  // Check if user already checked in today
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (status !== 'ready' || !session.user?.id) return;
@@ -29,9 +118,8 @@ export default function DashboardPage() {
     const storageKey = `raimon_checked_in_${session.user.id}`;
     const checkedInData = window.sessionStorage.getItem(storageKey);
 
-    // Only skip check-in if it was done today by this user
     if (checkedInData === today) {
-      setStage('tasks');
+      setStage('home');
     }
   }, [status, session.user?.id]);
 
@@ -45,13 +133,48 @@ export default function DashboardPage() {
       const response = await apiFetch<ApiSuccessResponse<DashboardSummaryPayload>>('/api/dashboard/summary');
       setStreakCount(response.data.streaks?.daily_check_in ?? 0);
     } catch {
-      // Silently fail - streak is non-critical
+      // Non-blocking
     }
   }
 
   useEffect(() => {
-    if (stage !== 'tasks' || status !== 'ready' || !session.accessToken) return;
-    fetchTasks();
+    if ((stage === 'home' || stage === 'tasks') && status === 'ready' && session.accessToken) {
+      fetchTasks();
+    }
+  }, [stage, status, session.accessToken]);
+
+  useEffect(() => {
+    if (stage !== 'home' || status !== 'ready' || !session.accessToken) return;
+    let cancelled = false;
+
+    async function loadNextEvent() {
+      const manualEvents = loadStoredEvents();
+      let projectEvents: CalendarEvent[] = [];
+      try {
+        const response = await apiFetch<ApiSuccessResponse<{ projects: ProjectApiRecord[] }>>(
+          '/api/projects?include_task_deadlines=true'
+        );
+        projectEvents = buildDeadlineEvents(response.data.projects);
+      } catch {
+        projectEvents = [];
+      }
+
+      const combined = [...manualEvents, ...projectEvents];
+      const now = new Date();
+      combined.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+      const todayMatches = combined.filter(
+        (event) => event.startTime >= now && event.startTime.toDateString() === now.toDateString()
+      );
+      if (!cancelled) {
+        setNextEvent(todayMatches[0] ?? combined.find((event) => event.startTime >= now) ?? null);
+      }
+    }
+
+    loadNextEvent();
+
+    return () => {
+      cancelled = true;
+    };
   }, [stage, status, session.accessToken]);
 
   async function fetchTasks() {
@@ -86,7 +209,7 @@ export default function DashboardPage() {
       const storageKey = `raimon_checked_in_${session.user.id}`;
       window.sessionStorage.setItem(storageKey, today);
     }
-    setStage('tasks');
+    setStage('home');
   }
 
   async function handleStartTask(task: Task) {
@@ -138,9 +261,46 @@ export default function DashboardPage() {
 
   const userName = useMemo(() => session.user?.name ?? 'there', [session.user?.name]);
 
-  return stage === 'checkin' ? (
-    <DailyCheckIn onComplete={handleCheckInComplete} userName={userName} streakCount={streakCount} />
-  ) : (
+  if (stage === 'checkin') {
+    return <DailyCheckIn onComplete={handleCheckInComplete} userName={userName} streakCount={streakCount} />;
+  }
+
+  if (stage === 'home') {
+    const projectFilterControl = (
+      <ProjectFilter
+        allTasks={tasks}
+        selectedProjects={selectedProjects}
+        onChange={setSelectedProjects}
+        renderTrigger={({ title, onOpen }) => (
+          <button
+            type="button"
+            onClick={onOpen}
+            className="bg-white/5 border border-white/10 rounded-full px-8 py-5 flex items-center gap-6 hover:bg-white/10 hover:border-[#FF6B00]/50 transition-all active:scale-95 group/btn"
+          >
+            <span className="text-2xl lg:text-3xl font-black text-white uppercase tracking-tighter">{title}</span>
+            <div className="h-6 w-[1px] bg-white/10" />
+            <div className="flex items-center gap-2 text-[#FF6B00]">
+              <span className="text-[10px] font-black uppercase tracking-[0.2em]">Change</span>
+              <ArrowRight size={16} className="group-hover/btn:translate-x-1 transition-transform" />
+            </div>
+          </button>
+        )}
+      />
+    );
+
+    return (
+      <HomeDashboard
+        userName={session.user?.name ?? undefined}
+        streakCount={streakCount}
+        projectFilterControl={projectFilterControl}
+        onStartDoing={() => setStage('tasks')}
+        onOpenCalendar={() => router.push('/calendar')}
+        nextEvent={nextEvent}
+      />
+    );
+  }
+
+  return (
     <TasksPage
       tasks={tasks}
       loading={tasksLoading}
@@ -149,7 +309,8 @@ export default function DashboardPage() {
       userName={session.user?.name ?? undefined}
       onDo={handleStartTask}
       onFinish={handleFinishDay}
+      selectedProjects={selectedProjects}
+      onSelectedProjectsChange={setSelectedProjects}
     />
   );
 }
-

@@ -21,6 +21,7 @@ interface ProjectApiResponse {
   type?: string | null;
   timeline?: string | null;
   deadline?: string | null;
+  target_end_date?: string | null;
   motivations?: string[] | null;
   tasks?: Array<{
     id: string;
@@ -32,6 +33,7 @@ interface ProjectApiResponse {
     dependsOn?: string;
     blocker?: string;
     recurring?: string;
+    note?: string | null;
   }> | null;
   notes?: string | null;
   links?: Array<{
@@ -41,6 +43,15 @@ interface ProjectApiResponse {
     type: 'file' | 'link';
   }> | null;
 }
+
+type ProjectDetailsRecord = {
+  id: string;
+  project_id: string;
+  deadline?: string | null;
+  notes?: string | null;
+  timeline?: string | null;
+  motivations?: string[] | null;
+};
 
 interface ProjectForView {
   id: string;
@@ -61,6 +72,7 @@ interface ProjectForView {
     dependsOn?: string;
     blocker?: string;
     recurring?: string;
+    note?: string;
   }>;
   notes: string;
   motivations: string[];
@@ -78,7 +90,8 @@ interface ProjectForView {
   }>;
 }
 
-function mapApiToProject(data: ProjectApiResponse): ProjectForView {
+function mapApiToProject(data: ProjectApiResponse, details?: ProjectDetailsRecord | null): ProjectForView {
+  const normalizedDeadline = data.target_end_date ?? details?.deadline ?? data.deadline ?? '';
   return {
     id: data.id,
     name: data.name,
@@ -87,9 +100,11 @@ function mapApiToProject(data: ProjectApiResponse): ProjectForView {
     status: data.status === 'archived' ? 'paused' : data.status,
     color: data.color ?? '#F97316',
     timeframe: data.timeline ?? 'Ongoing',
-    deadline: data.deadline ?? 'No deadline',
+    deadline: normalizedDeadline,
     tasks: (data.tasks ?? []).map((t) => ({
       ...t,
+      note: t.note ?? '',
+      dueDate: t.dueDate ?? '',
       subtasks: t.subtasks ?? [],
     })),
     notes: data.notes ?? '',
@@ -119,10 +134,10 @@ export default function ProjectDetailPage() {
     setLoading(true);
     setError('');
     try {
-      const response = await apiFetch<ApiSuccessResponse<{ project: ProjectApiResponse }>>(
+      const response = await apiFetch<ApiSuccessResponse<{ project: ProjectApiResponse; details?: ProjectDetailsRecord | null }>>(
         `/api/projects/${projectId}`
       );
-      setProject(mapApiToProject(response.data.project));
+      setProject(mapApiToProject(response.data.project, response.data.details ?? null));
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -142,12 +157,13 @@ export default function ProjectDetailPage() {
         id: task.id,
         title: task.title,
         completed: task.completed,
-        due_date: task.dueDate,
+        due_date: task.dueDate || null,
         priority: task.priority,
         subtasks: task.subtasks,
         depends_on: task.dependsOn,
         blocker: task.blocker,
         recurring: task.recurring,
+        note: task.note ?? '',
       }));
 
       const response = await apiFetch<ApiSuccessResponse<{ project: ProjectApiResponse }>>(
@@ -158,6 +174,7 @@ export default function ProjectDetailPage() {
             name: updatedProject.name,
             description: updatedProject.description,
             notes: updatedProject.notes,
+            target_end_date: updatedProject.deadline || null,
             tasks: tasksForBackend,
           },
         }
@@ -168,6 +185,7 @@ export default function ProjectDetailPage() {
         setProject({
           ...updatedProject,
           status: response.data.project.status === 'archived' ? 'paused' : response.data.project.status,
+          deadline: response.data.project.target_end_date ?? response.data.project.deadline ?? '',
         });
       } else {
         setProject(updatedProject);

@@ -1,8 +1,237 @@
 'use client';
 
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { apiFetch, ApiError } from '../../../lib/api-client';
 import type { ApiSuccessResponse, ProjectApiRecord } from '../../../types/api';
+
+/**
+ * HowItWorksPill Component
+ *
+ * Triggers a "System Blueprint" style modal that explains the Raimon ecosystem.
+ * Matches the requested aesthetic: high-contrast headers, grid-based info cards, and clean UI.
+ */
+const HowItWorksPill: React.FC = () => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Prevent scrolling when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
+
+  // Handle ESC key to close
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, []);
+
+  return (
+    <>
+      {/* The Trigger Pill */}
+      <button
+        type="button"
+        onClick={() => setIsOpen(true)}
+        className="h-10 px-6 rounded-full bg-white text-black flex items-center gap-2 hover:bg-orange-500 hover:text-white transition-all active:scale-95 group border border-gray-100 shadow-sm"
+      >
+        <div className="w-4 h-4 bg-black group-hover:bg-white rounded-full flex items-center justify-center transition-colors">
+          <span className="text-[8px] font-black text-white group-hover:text-black">?</span>
+        </div>
+        <span className="text-[9px] font-black uppercase tracking-[0.1em]">How it works</span>
+      </button>
+
+      {/* The System Blueprint Modal */}
+      {isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 md:p-12 animate-in fade-in duration-300">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setIsOpen(false)}
+          />
+
+          {/* Modal Container */}
+          <div className="relative w-full max-w-6xl bg-white rounded-[60px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 slide-in-from-bottom-10 duration-500">
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="absolute top-10 right-10 w-12 h-12 bg-black text-white rounded-full flex items-center justify-center hover:scale-110 transition-transform z-10 shadow-lg"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto p-12 md:p-20 custom-scrollbar">
+              <header className="mb-16">
+                <span className="text-orange-500 font-bold text-xs tracking-[0.2em] uppercase mb-4 block">System Blueprint</span>
+                <h1 className="text-6xl font-black text-zinc-900 leading-[1.1] tracking-tighter">
+                  UNDERSTANDING<br />THE FLOW
+                </h1>
+                <p className="text-zinc-400 text-xl mt-6 font-medium max-w-2xl leading-relaxed">
+                  Everything in this ecosystem is built to lower your cognitive load. Here is how we protect your focus.
+                </p>
+              </header>
+
+              {/* Blueprint Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* 1. Workspace */}
+                <div className="bg-zinc-50 rounded-[40px] p-10 flex flex-col gap-6 hover:bg-zinc-100/80 transition-colors">
+                  <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-orange-500">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                      <line x1="3" y1="9" x2="21" y2="9"></line>
+                      <line x1="9" y1="21" x2="9" y2="9"></line>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-zinc-900 font-black text-xl mb-3 tracking-tight">WORKSPACE</h3>
+                    <p className="text-zinc-500 text-[15px] leading-relaxed">
+                      "Choose your workspace" creates a mental boundary. <span className="text-zinc-900 font-bold">Work</span> vs <span className="text-zinc-900 font-bold">Personal</span> buckets ensure your universe stays organized and relevant.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 2. Timelines */}
+                <div className="bg-zinc-50 rounded-[40px] p-10 flex flex-col gap-6 hover:bg-zinc-100/80 transition-colors">
+                  <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-orange-500">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-zinc-900 font-black text-xl mb-3 tracking-tight">TIMELINES</h3>
+                    <p className="text-zinc-500 text-[15px] leading-relaxed">
+                      Time is flexible. Set dates for a <span className="text-zinc-900 font-bold italic">whole project</span> or specific <span className="text-zinc-900 font-bold italic">tasks</span>. Timelines and notes are always optional—only add what helps.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 3. The Why */}
+                <div className="bg-zinc-50 rounded-[40px] p-10 flex flex-col gap-6 hover:bg-zinc-100/80 transition-colors">
+                  <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-orange-500">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                      <path d="M2 17l10 5 10-5"></path>
+                      <path d="M2 12l10 5 10-5"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-zinc-900 font-black text-xl mb-3 tracking-tight">THE "WHY"</h3>
+                    <p className="text-zinc-500 text-[15px] leading-relaxed">
+                      This is the grounding ritual. When Raimon understands your vision, it can <span className="text-zinc-900 font-bold">proactively assist</span> and protect your focus at every step.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 4. Team Execution */}
+                <div className="bg-zinc-50 rounded-[40px] p-10 flex flex-col gap-6 hover:bg-zinc-100/80 transition-colors border-2 border-transparent hover:border-orange-100">
+                  <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-orange-500">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="9" cy="7" r="4"></circle>
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-zinc-900 font-black text-xl mb-3 tracking-tight">WHO'S INVOLVED</h3>
+                    <p className="text-zinc-500 text-[15px] leading-relaxed">
+                      Knowing who is involved and their roles helps Raimon build an <span className="text-zinc-900 font-bold italic">execution blueprint</span> that works for everyone, not just you.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 5. Resource Hub */}
+                <div className="bg-zinc-50 rounded-[40px] p-10 flex flex-col gap-6 hover:bg-zinc-100/80 transition-colors">
+                  <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-orange-500">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path>
+                      <line x1="8" y1="12" x2="16" y2="12"></line>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-zinc-900 font-black text-xl mb-3 tracking-tight">RESOURCE HUB</h3>
+                    <p className="text-zinc-500 text-[15px] leading-relaxed">
+                      Upload files and links directly to the project. Access them <span className="text-zinc-900 font-bold">instantly</span> while doing tasks—no more hunting through 20 open tabs.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 6. Vault Management */}
+                <div className="bg-zinc-50 rounded-[40px] p-10 flex flex-col gap-6 hover:bg-zinc-100/80 transition-colors">
+                  <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-orange-500">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-zinc-900 font-black text-xl mb-3 tracking-tight">PROJECT VAULT</h3>
+                    <p className="text-zinc-500 text-[15px] leading-relaxed">
+                      Once created, your work lives in <span className="text-zinc-900 font-bold italic">My Projects</span>. Active, paused, or archived—you can <span className="text-zinc-900 font-bold underline decoration-orange-200 underline-offset-4">edit or erase</span> anything at any time.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <footer className="mt-20 pt-12 border-t border-zinc-100 flex justify-between items-center">
+                <div className="flex gap-4">
+                  <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></div>
+                  <div className="w-2 h-2 rounded-full bg-zinc-200"></div>
+                  <div className="w-2 h-2 rounded-full bg-zinc-200"></div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  className="px-10 py-5 bg-zinc-900 text-white rounded-3xl font-bold tracking-widest uppercase hover:scale-105 active:scale-95 transition-all shadow-xl"
+                >
+                  Got the blueprint
+                </button>
+              </footer>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #f1f1f1;
+          border-radius: 20px;
+          border: 4px solid white;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #e4e4e7;
+        }
+      `}</style>
+    </>
+  );
+};
 
 type Props = {
   onCreated?: (projectId: string) => void;
@@ -16,6 +245,8 @@ type Person = {
 type TaskItem = {
   title: string;
   note: string;
+  deadlineDate?: string;
+  deadlineTime?: string;
   showNote?: boolean;
 };
 
@@ -27,6 +258,12 @@ function pickColor(type: 'work' | 'personal') {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+function combineDateTime(date?: string, time?: string) {
+  if (!date) return undefined;
+  const safeTime = time && time.length > 0 ? time : '23:59';
+  return `${date}T${safeTime}:00`;
+}
+
 export default function CreateProject({ onCreated }: Props) {
   // -- State --
   const [name, setName] = useState('');
@@ -34,12 +271,13 @@ export default function CreateProject({ onCreated }: Props) {
   const [brief, setBrief] = useState('');
 
   // Tasks state updated to handle objects and visibility
-  const [tasks, setTasks] = useState<TaskItem[]>([{ title: '', note: '', showNote: false }]);
+  const [tasks, setTasks] = useState<TaskItem[]>([{ title: '', note: '', showNote: false, deadlineDate: '', deadlineTime: '' }]);
 
   const [timeline, setTimeline] = useState<'Today' | 'Week' | 'Month' | 'Long-term'>('Week');
   const [deadlineMonth, setDeadlineMonth] = useState('');
   const [deadlineDay, setDeadlineDay] = useState('');
   const [deadlineYear, setDeadlineYear] = useState('');
+  const [deadlineTime, setDeadlineTime] = useState('');
 
   const [why, setWhy] = useState<string[]>([]);
   const [people, setPeople] = useState<'me' | 'others'>('me');
@@ -62,9 +300,14 @@ export default function CreateProject({ onCreated }: Props) {
 
   const canCreate = name.trim().length > 0 && !isSubmitting;
 
+  const yearOptions = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    return Array.from({ length: 7 }, (_, i) => String(currentYear + i));
+  }, []);
+
   // -- Helpers --
   function addTaskRow() {
-    setTasks((prev) => [...prev, { title: '', note: '', showNote: false }]);
+    setTasks((prev) => [...prev, { title: '', note: '', showNote: false, deadlineDate: '', deadlineTime: '' }]);
   }
 
   function updateTask(index: number, field: keyof TaskItem, value: string | boolean) {
@@ -123,10 +366,15 @@ export default function CreateProject({ onCreated }: Props) {
     setOthersList(prev => prev.filter((_, index) => index !== indexToRemove));
   }
 
-  const deadlineIso = useMemo(() => {
+  const deadlineDateOnly = useMemo(() => {
     if (!deadlineMonth || !deadlineDay || !deadlineYear) return undefined;
     return `${deadlineYear}-${deadlineMonth}-${deadlineDay}`;
   }, [deadlineMonth, deadlineDay, deadlineYear]);
+
+  const deadlineIso = useMemo(() => {
+    if (!deadlineDateOnly) return undefined;
+    return combineDateTime(deadlineDateOnly, deadlineTime);
+  }, [deadlineDateOnly, deadlineTime]);
 
   async function handleCreate() {
     if (!canCreate) return;
@@ -136,7 +384,11 @@ export default function CreateProject({ onCreated }: Props) {
       // Filter out tasks with empty titles and clean inputs
       const cleanTasks = tasks
         .filter(t => t.title.trim().length > 0)
-        .map(t => ({ title: t.title.trim(), note: t.note.trim() }));
+        .map(t => ({
+          title: t.title.trim(),
+          note: t.note.trim() || undefined,
+          deadline: combineDateTime(t.deadlineDate, t.deadlineTime),
+        }));
 
       const payload: Record<string, unknown> = {
         name: name.trim(),
@@ -154,8 +406,11 @@ export default function CreateProject({ onCreated }: Props) {
         },
       };
 
+      if (deadlineDateOnly) {
+        payload.target_end_date = deadlineDateOnly;
+      }
+
       if (deadlineIso) {
-        payload.target_end_date = deadlineIso;
         (payload.details as Record<string, unknown>).deadline = deadlineIso;
       }
 
@@ -199,10 +454,15 @@ export default function CreateProject({ onCreated }: Props) {
     <div className="w-full max-w-5xl mx-auto">
 
       {/* Hero */}
-      <div className="text-center mb-10">
-        <h1 className="text-[52px] font-light text-[#1A1A1A] tracking-[-0.03em] leading-[1.1] mb-2">
-          Let&apos;s build <span className="bg-linear-to-br from-[#A7F3D0] via-[#93C5FD] to-[#C4B5FD] bg-clip-text text-transparent">something great.</span>
-        </h1>
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6 mb-12">
+        <div className="text-center md:text-left flex-1">
+          <h1 className="text-[52px] font-light text-[#1A1A1A] tracking-[-0.03em] leading-[1.1] mb-2">
+            Let&apos;s build <span className="bg-linear-to-br from-[#A7F3D0] via-[#93C5FD] to-[#C4B5FD] bg-clip-text text-transparent">something great.</span>
+          </h1>
+        </div>
+        <div className="flex justify-center md:justify-end">
+          <HowItWorksPill />
+        </div>
       </div>
 
       {serverError && (
@@ -303,6 +563,26 @@ export default function CreateProject({ onCreated }: Props) {
                   />
                 </div>
               )}
+
+              <div className="pl-8 flex flex-col gap-1 mt-2">
+                <span className="text-[11px] font-semibold uppercase tracking-widest text-[#C0C0C0]">Task deadline (optional)</span>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="date"
+                    className="bg-[#F5F3ED] border border-transparent rounded-xl px-3 py-2 text-sm text-[#1A1A1A] outline-none focus:border-[#1A1A1A] cursor-pointer flex-1"
+                    value={t.deadlineDate || ''}
+                    onChange={(e) => updateTask(idx, 'deadlineDate', e.target.value)}
+                    disabled={isSubmitting}
+                  />
+                  <input
+                    type="time"
+                    className="bg-[#F5F3ED] border border-transparent rounded-xl px-3 py-2 text-sm text-[#1A1A1A] outline-none focus:border-[#1A1A1A] cursor-pointer sm:w-32"
+                    value={t.deadlineTime || ''}
+                    onChange={(e) => updateTask(idx, 'deadlineTime', e.target.value)}
+                    disabled={isSubmitting}
+                  />
+                </div>
+              </div>
             </div>
           ))}
           <button
@@ -381,12 +661,28 @@ export default function CreateProject({ onCreated }: Props) {
                 </div>
               </div>
 
+              <div className="relative">
+                <select
+                  className="appearance-none bg-[#F5F3ED] pl-4 pr-8 py-3 rounded-full text-sm font-medium text-[#6B6B6B] outline-none focus:ring-1 focus:ring-[#1A1A1A] cursor-pointer"
+                  value={deadlineYear}
+                  onChange={(e) => setDeadlineYear(e.target.value)}
+                  disabled={isSubmitting}
+                >
+                  <option value="">Year</option>
+                  {yearOptions.map((year) => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-[#6B6B6B]">
+                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                </div>
+              </div>
+
               <input
-                className="bg-[#F5F3ED] w-20 py-3 px-4 rounded-full text-sm font-medium text-[#6B6B6B] outline-none focus:ring-1 focus:ring-[#1A1A1A] text-center placeholder-[#6B6B6B]"
-                value={deadlineYear}
-                onChange={(e) => setDeadlineYear(e.target.value)}
-                placeholder="Year"
-                maxLength={4}
+                type="time"
+                className="bg-[#F5F3ED] w-28 py-3 px-4 rounded-full text-sm font-medium text-[#1A1A1A] outline-none focus:ring-1 focus:ring-[#1A1A1A] text-center placeholder-[#6B6B6B]"
+                value={deadlineTime}
+                onChange={(e) => setDeadlineTime(e.target.value)}
                 disabled={isSubmitting}
               />
             </div>

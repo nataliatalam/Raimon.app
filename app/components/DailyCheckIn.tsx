@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Flame } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import styles from './DailyCheckIn.module.css';
 import ActivationFlow from './ActivationFlow';
 import { apiFetch, ApiError } from '../../lib/api-client';
+import SystemGuide from './SystemGuide';
+import StreakWidget from './StreakWidget';
 
 // --- Types & Interfaces ---
 export interface Option {
@@ -60,51 +62,7 @@ export const STEPS: QuestionStep[] = [
   },
 ];
 
-export const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-// --- Sub-Components ---
-
-type StreakWidgetProps = {
-  streakCount: number;
-};
-
-const StreakWidget: React.FC<StreakWidgetProps> = ({ streakCount }) => {
-  const [currentDayIndex, setCurrentDayIndex] = useState<number | null>(null);
-
-  useEffect(() => {
-    setCurrentDayIndex(new Date().getDay());
-  }, []);
-
-  return (
-    <div className={styles.streakSubtle}>
-      <div className={styles.streakHeader}>
-        <div className={styles.streakIconBox}>
-            <Flame className={styles.streakIcon} />
-        </div>
-        <div>
-            <div className={styles.streakCount}>{streakCount}</div>
-            <span className={styles.streakLabel}>Day Streak</span>
-        </div>
-      </div>
-
-      <div className={styles.streakDays}>
-        {DAYS_OF_WEEK.map((day, index) => {
-          const isToday = currentDayIndex !== null && index === currentDayIndex;
-          const isCompleted = currentDayIndex !== null && (index < currentDayIndex || isToday);
-
-          return (
-            <div key={index} className={styles.streakDayCol}>
-               <div className={`${styles.streakDot} ${isToday ? styles.today : isCompleted ? styles.completed : ''}`} />
-               <span className={`${styles.streakDayName} ${isToday ? styles.active : ''}`}>{day}</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
-
-const Header: React.FC<{ userName?: string; streakCount: number }> = ({ userName, streakCount }) => {
+const Header: React.FC<{ userName?: string; streakCount: number; onOpenGuide: () => void }> = ({ userName, streakCount, onOpenGuide }) => {
   const [time, setTime] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -140,6 +98,9 @@ const Header: React.FC<{ userName?: string; streakCount: number }> = ({ userName
 
       <div className={styles.slideUp} style={{ animationDelay: '300ms' }}>
         <StreakWidget streakCount={streakCount} />
+        <button type="button" onClick={onOpenGuide} className={styles.guideCta}>
+          How Raimon Works
+        </button>
       </div>
     </header>
   );
@@ -158,6 +119,7 @@ const DailyCheckIn: React.FC<DailyCheckInProps> = ({ onComplete, userName, strea
   const [responses, setResponses] = useState<UserResponses>({});
   const [view, setView] = useState<AppView>(AppView.CHECK_IN);
   const [activationFlowOpen, setActivationFlowOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -241,7 +203,7 @@ const DailyCheckIn: React.FC<DailyCheckInProps> = ({ onComplete, userName, strea
         {/* Decorative Background */}
         <div className={styles.gradientOrb}></div>
 
-        {view === AppView.CHECK_IN && <Header userName={userName} streakCount={streakCount} />}
+        {view === AppView.CHECK_IN && <Header userName={userName} streakCount={streakCount} onOpenGuide={() => setGuideOpen(true)} />}
 
         <main className={styles.checkinContent}>
           {view === AppView.CHECK_IN && (
@@ -365,6 +327,7 @@ const DailyCheckIn: React.FC<DailyCheckInProps> = ({ onComplete, userName, strea
           onClose={() => setActivationFlowOpen(false)}
           onComplete={handleFinish}
         />
+        {guideOpen && <SystemGuide onClose={() => setGuideOpen(false)} />}
       </div>
     </div>
   );

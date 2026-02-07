@@ -92,6 +92,15 @@ export type ProjectApiRecord = {
   progress?: number | null;
   archived_at?: string | null;
   created_at?: string | null;
+  deadline?: string | null;
+  target_end_date?: string | null;
+  task_deadlines?: Array<{
+    id: string;
+    title: string;
+    deadline?: string | null;
+    status?: string | null;
+    project_id?: string | null;
+  }>;
 };
 
 export type FlowerTransaction = {
@@ -131,4 +140,3 @@ export type ProjectFile = {
   mime_type?: string;
   uploaded_at?: string;
 };
-

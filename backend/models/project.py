@@ -31,6 +31,7 @@ class StakeholderSchema(BaseModel):
 
 
 class ResourceSchema(BaseModel):
+    id: Optional[str] = None
     type: str = Field(..., max_length=50)  # document, link, file
     title: str = Field(..., min_length=1, max_length=255)
     url: str = Field(..., max_length=2048)
@@ -94,6 +95,12 @@ class TaskUpdateSchema(BaseModel):
     depends_on: Optional[str] = None
     blocker: Optional[str] = None
     recurring: Optional[str] = None
+    note: Optional[str] = None
+
+    @field_validator("note")
+    @classmethod
+    def sanitize_note(cls, v):
+        return sanitize_string(v)
 
 
 class ProjectUpdate(BaseModel):
@@ -107,6 +114,7 @@ class ProjectUpdate(BaseModel):
     target_end_date: Optional[date] = None
     notes: Optional[str] = Field(default=None, max_length=50000)
     tasks: Optional[List[TaskUpdateSchema]] = None
+    links: Optional[List[ResourceSchema]] = None
 
     @field_validator("name")
     @classmethod
