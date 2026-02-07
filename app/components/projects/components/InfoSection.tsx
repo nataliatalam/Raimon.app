@@ -35,28 +35,21 @@ export default function InfoSection() {
   ];
 
   if (!isOpen) {
-    // Collapsed View
+    // Collapsed View matches calendar pill styling for consistency
     return (
-      <div
+      <button
+        type="button"
         onClick={() => setIsOpen(true)}
-        className="bg-[#0f172a] hover:bg-[#1e293b] w-full max-w-60 rounded-[20px] p-5 cursor-pointer group transition-all duration-300 hover:-translate-y-1 shadow-lg shadow-slate-200/40 relative overflow-hidden min-h-35 flex flex-col justify-between"
+        className="h-14 px-6 rounded-full bg-white text-black flex items-center gap-3 hover:bg-orange-500 hover:text-white transition-all active:scale-95 group border border-gray-100 shadow-sm min-w-[220px]"
       >
-         {/* Decorative faint glow */}
-         <div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2"></div>
-
-         <div className="relative z-10 flex flex-col gap-0.5">
-           <h2 className="text-3xl font-bold text-orange-500 tracking-tighter leading-[0.9]">Guide</h2>
-           <p className="text-white text-sm font-medium leading-tight max-w-[95%] tracking-tight opacity-90">
-             How do I use this section?
-           </p>
-         </div>
-
-         <div className="flex justify-end relative z-10 mt-auto pt-2">
-            <div className="flex items-center gap-1.5 text-white font-semibold text-xs group-hover:text-orange-400 transition-colors uppercase tracking-wider bg-white/10 px-3 py-1.5 rounded-full backdrop-blur-sm">
-               Open <ArrowRight size={12} />
-            </div>
-         </div>
-      </div>
+        <div className="w-5 h-5 bg-black group-hover:bg-white rounded-full flex items-center justify-center transition-colors">
+          <span className="text-[9px] font-black text-white group-hover:text-black">?</span>
+        </div>
+        <div className="flex flex-col items-start leading-tight">
+          <span className="text-[10px] font-black uppercase tracking-[0.2em]">Guide</span>
+          <span className="text-xs font-medium tracking-tight">How it works</span>
+        </div>
+      </button>
     );
   }
 
@@ -71,7 +64,7 @@ export default function InfoSection() {
          <div className="flex justify-between items-start mb-5 relative z-10">
             <div>
                 <h2 className="text-3xl font-bold text-orange-500 tracking-tighter mb-1 leading-none">Guide</h2>
-                <p className="text-white/80 text-sm font-medium tracking-tight">How do I use this section?</p>
+                <p className="text-white/80 text-sm font-medium tracking-tight">How it works</p>
             </div>
             <button
               onClick={() => setIsOpen(false)}

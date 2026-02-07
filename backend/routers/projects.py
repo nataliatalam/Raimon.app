@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Query, UploadFile, File, Form
 from datetime import datetime, timezone
-from typing import Optional, List
-from uuid import UUID
+from typing import Optional, List, Any
+from uuid import UUID, uuid4
 import json
 from models.project import (
     ProjectCreate,
@@ -14,6 +14,7 @@ from models.project import (
     ProjectStatus,
 )
 from core.supabase import get_supabase, get_supabase_admin
+from core.config import get_settings
 from core.security import get_current_user
 from opik import track
 import logging
@@ -21,6 +22,14 @@ import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/projects", tags=["Projects"])
+settings = get_settings()
+
+
+def build_public_file_url(file_path: str | None) -> Optional[str]:
+    if not file_path:
+        return None
+    base_url = settings.supabase_url.rstrip("/")
+    return f"{base_url}/storage/v1/object/public/project-files/{file_path}"
 
 
 # Helper function to check project ownership
@@ -93,6 +102,7 @@ async def list_projects(
     current_user: dict = Depends(get_current_user),
     status_filter: Optional[ProjectStatus] = Query(default=None, alias="status"),
     include_archived: bool = Query(default=False),
+    include_task_deadlines: bool = Query(default=False),
 ):
     """List all projects for the authenticated user."""
     try:
@@ -110,10 +120,32 @@ async def list_projects(
 
         response = query.execute()
 
+        # Optionally prefetch task deadlines for calendar sync
+        task_deadlines_map: dict[str, List[dict]] = {}
+        if include_task_deadlines:
+            try:
+                deadlines_response = (
+                    supabase.table("tasks")
+                    .select("id,title,deadline,status,project_id")
+                    .eq("user_id", current_user["id"])
+                    .not_.is_("deadline", "null")
+                    .execute()
+                )
+                for task in deadlines_response.data or []:
+                    if not task.get("project_id"):
+                        continue
+                    project_id = task["project_id"]
+                    task_deadlines_map.setdefault(project_id, []).append(task)
+            except Exception as task_err:
+                logger.warning(f"Failed to load task deadlines: {task_err}", exc_info=True)
+
         # Add stats to each project
         projects_with_stats = []
         for project in response.data or []:
             project_with_stats = await get_project_with_stats(project)
+            project_with_stats["deadline"] = project.get("target_end_date")
+            if include_task_deadlines:
+                project_with_stats["task_deadlines"] = task_deadlines_map.get(project["id"], [])
             projects_with_stats.append(project_with_stats)
 
         return {
@@ -191,19 +223,39 @@ async def create_project(
             tasks_list = request.details.get("tasks", [])
             logger.info(f"Creating project with tasks: {tasks_list}")
             if tasks_list and isinstance(tasks_list, list):
-                for task_title in tasks_list:
-                    if isinstance(task_title, str) and task_title.strip():
-                        task_data = {
-                            "project_id": project["id"],
-                            "user_id": current_user["id"],
-                            "title": task_title.strip(),
-                            "status": "todo",
-                        }
-                        try:
-                            result = supabase.table("tasks").insert(task_data).execute()
-                            logger.info(f"Created task: {task_title} -> {result.data}")
-                        except Exception as task_err:
-                            logger.error(f"Failed to create task '{task_title}': {task_err}", exc_info=True)
+                for raw_task in tasks_list:
+                    # Support legacy payloads that only send the title string
+                    if isinstance(raw_task, str):
+                        task_title = raw_task.strip()
+                        note = None
+                        deadline = None
+                    elif isinstance(raw_task, dict):
+                        task_title = str(raw_task.get("title", "")).strip()
+                        note = raw_task.get("note")
+                        deadline = raw_task.get("deadline")
+                    else:
+                        continue
+
+                    if not task_title:
+                        continue
+
+                    task_data = {
+                        "project_id": project["id"],
+                        "user_id": current_user["id"],
+                        "title": task_title,
+                        "status": "todo",
+                    }
+
+                    if note:
+                        task_data["description"] = note
+                    if deadline:
+                        task_data["deadline"] = deadline
+
+                    try:
+                        result = supabase.table("tasks").insert(task_data).execute()
+                        logger.info(f"Created task: {task_title} -> {result.data}")
+                    except Exception as task_err:
+                        logger.error(f"Failed to create task '{task_title}': {task_err}", exc_info=True)
 
         return {
             "success": True,
@@ -283,6 +335,22 @@ async def get_project(
         )
         details = details_response.data[0] if details_response.data else None
 
+        # Fetch linked resources (files & links)
+        resources = normalize_resource_links(details.get("resources") if details else [])
+
+        try:
+            files_response = (
+                supabase.table("project_files")
+                .select("*")
+                .eq("project_id", str(project_id))
+                .order("uploaded_at", desc=True)
+                .execute()
+            )
+            file_links = [map_file_record(record) for record in (files_response.data or [])]
+        except Exception as file_err:
+            logger.warning(f"Failed to load project files (table may be missing): {file_err}")
+            file_links = []
+
         # Get tasks for this project
         tasks_response = (
             supabase.table("tasks")
@@ -302,11 +370,15 @@ async def get_project(
                 "dueDate": task.get("deadline"),  # Table uses 'deadline' column
                 "priority": task.get("priority", "medium"),
                 "subtasks": [],  # TODO: fetch subtasks if needed
+                "note": task.get("description"),
             })
 
         # Add tasks and notes to project response
         project_with_stats["tasks"] = tasks
         project_with_stats["notes"] = details.get("notes", "") if details else ""
+        project_with_stats["deadline"] = project.get("target_end_date") or (details.get("deadline") if details else None)
+
+        project_with_stats["links"] = resources + file_links
 
         return {
             "success": True,
@@ -372,7 +444,21 @@ async def update_project(
             project_result = None
 
         # Handle notes - store in project_details table
+        details_update_payload = {}
         if request.notes is not None:
+            try:
+                details_update_payload["notes"] = request.notes
+            except Exception as notes_err:
+                logger.warning(f"Failed to save notes (column may not exist): {notes_err}")
+                # Continue without failing - notes column might not exist
+
+        if request.links is not None:
+            try:
+                details_update_payload["resources"] = [link.model_dump() for link in request.links]
+            except Exception as links_err:
+                logger.warning(f"Failed to serialize links payload: {links_err}")
+
+        if details_update_payload:
             try:
                 existing_details = (
                     supabase.table("project_details")
@@ -382,16 +468,13 @@ async def update_project(
                 )
 
                 if existing_details.data:
-                    supabase.table("project_details").update(
-                        {"notes": request.notes}
-                    ).eq("project_id", str(project_id)).execute()
+                    supabase.table("project_details").update(details_update_payload).eq("project_id", str(project_id)).execute()
                 else:
                     supabase.table("project_details").insert(
-                        {"project_id": str(project_id), "notes": request.notes}
+                        {"project_id": str(project_id), **details_update_payload}
                     ).execute()
-            except Exception as notes_err:
-                logger.warning(f"Failed to save notes (column may not exist): {notes_err}")
-                # Continue without failing - notes column might not exist
+            except Exception as details_err:
+                logger.warning(f"Failed to save project details: {details_err}")
 
         # Handle tasks - sync with tasks table
         if request.tasks is not None:
@@ -422,6 +505,8 @@ async def update_project(
                         task_data["deadline"] = task.due_date  # Table uses 'deadline' not 'due_date'
                     if task.priority:
                         task_data["priority"] = task.priority
+                    if task.note is not None:
+                        task_data["description"] = task.note
 
                     # Check if this is an existing task (valid UUID format)
                     is_existing = (
@@ -485,9 +570,38 @@ async def update_project(
             .execute()
         )
 
+        # Attach latest links (resources + files) if we updated them
+        response_project = updated_project.data if updated_project.data else project_result
+        if response_project:
+            links_payload = []
+            if request.links is not None:
+                links_payload.extend([
+                    {
+                        "id": link.id or link.url,
+                        "title": link.title,
+                        "url": link.url,
+                        "type": link.type,
+                    }
+                    for link in request.links
+                ])
+
+            # Always include stored files
+            try:
+                files_response = (
+                    supabase.table("project_files")
+                    .select("*")
+                    .eq("project_id", str(project_id))
+                    .execute()
+                )
+                links_payload.extend(map_file_record(record) for record in (files_response.data or []))
+            except Exception as file_err:
+                logger.warning(f"Failed to load project files for response: {file_err}")
+
+            response_project["links"] = links_payload
+
         return {
             "success": True,
-            "data": {"project": updated_project.data if updated_project.data else project_result},
+            "data": {"project": response_project},
         }
     except HTTPException:
         raise
@@ -882,6 +996,48 @@ ALLOWED_MIME_TYPES = [
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 
 
+def map_file_record(record: dict) -> dict:
+    return {
+        "id": record.get("id"),
+        "title": record.get("file_name"),
+        "url": build_public_file_url(record.get("file_path")) or record.get("file_path"),
+        "type": "file",
+    }
+
+
+def normalize_resource_links(raw_resources: Any) -> List[dict]:
+    """Ensure project resource entries are always returned as dictionaries."""
+    normalized: List[dict] = []
+    if not raw_resources:
+        return normalized
+
+    if not isinstance(raw_resources, list):
+        logger.warning("Unexpected resources payload type: %s", type(raw_resources))
+        return normalized
+
+    for entry in raw_resources:
+        if isinstance(entry, dict):
+            normalized.append(
+                {
+                    "id": entry.get("id") or str(uuid4()),
+                    "title": entry.get("title", entry.get("url", "Untitled")),
+                    "url": entry.get("url", ""),
+                    "type": entry.get("type", "link"),
+                }
+            )
+        elif isinstance(entry, str):
+            normalized.append(
+                {
+                    "id": str(uuid4()),
+                    "title": entry,
+                    "url": entry,
+                    "type": "link",
+                }
+            )
+
+    return normalized
+
+
 @router.post("/{project_id}/files", status_code=status.HTTP_201_CREATED)
 async def upload_project_files(
     project_id: UUID,
@@ -1115,18 +1271,37 @@ async def create_project_with_files(
                 # Create tasks if provided in details
                 tasks_list = details_dict.get("tasks", [])
                 if tasks_list and isinstance(tasks_list, list):
-                    for task_title in tasks_list:
-                        if isinstance(task_title, str) and task_title.strip():
-                            task_data = {
-                                "project_id": project["id"],
-                                "user_id": current_user["id"],
-                                "title": task_title.strip(),
-                                "status": "todo",
-                            }
-                            try:
-                                supabase.table("tasks").insert(task_data).execute()
-                            except Exception as task_err:
-                                logger.warning(f"Failed to create task: {task_err}")
+                    for raw_task in tasks_list:
+                        if isinstance(raw_task, str):
+                            task_title = raw_task.strip()
+                            note = None
+                            deadline = None
+                        elif isinstance(raw_task, dict):
+                            task_title = str(raw_task.get("title", "")).strip()
+                            note = raw_task.get("note")
+                            deadline = raw_task.get("deadline")
+                        else:
+                            continue
+
+                        if not task_title:
+                            continue
+
+                        task_data = {
+                            "project_id": project["id"],
+                            "user_id": current_user["id"],
+                            "title": task_title,
+                            "status": "todo",
+                        }
+
+                        if note:
+                            task_data["description"] = note
+                        if deadline:
+                            task_data["deadline"] = deadline
+
+                        try:
+                            supabase.table("tasks").insert(task_data).execute()
+                        except Exception as task_err:
+                            logger.warning(f"Failed to create task: {task_err}")
             except json.JSONDecodeError:
                 logger.warning(f"Invalid JSON in details field: {details}")
 

@@ -36,26 +36,28 @@ type Props = {
   onAddToExisting?: (thought: Thought) => void;
   onSaveThought?: (thought: Thought) => void;
   onDiscardThought?: (thought: Thought) => void;
+  selectedProjects?: string[];
+  onSelectedProjectsChange?: (projects: string[]) => void;
 };
 
 export const DEFAULT_TASKS: Task[] = [
   {
-    title: 'Review marketing\nbudget proposal',
-    desc: "Go through the Q1 marketing budget spreadsheet and add comments for tomorrow's meeting.",
-    project: 'Q1 Planning',
-    duration: '25 min',
+    title: 'Email Bob',
+    desc: "Just a quick follow up.",
+    project: 'Admin',
+    duration: '5 min',
   },
   {
-    title: 'Update client\npresentation',
-    desc: "Add the new metrics slides and update the timeline section before Friday's call.",
-    project: 'Client Work',
-    duration: '40 min',
+    title: 'Finalize the Q4 Marketing Strategy Report',
+    desc: "Make sure all stakeholders have signed off.",
+    project: 'Planning',
+    duration: '45 min',
   },
   {
-    title: 'Write weekly\nreport summary',
-    desc: "Compile this week's highlights and blockers for the team standup.",
-    project: 'Team Updates',
-    duration: '15 min',
+    title: '2',
+    desc: "Quick check.",
+    project: 'test',
+    duration: '2 min',
   },
 ];
 
@@ -65,7 +67,7 @@ export default function TasksPage({
   userName,
   loading = false,
   errorMessage,
-  emptyMessage = "You're all caught up for today. Create a project to add tasks.",
+  emptyMessage = "You're all caught up for today.",
   onDo,
   onFinish,
   onStartTask,
@@ -74,12 +76,23 @@ export default function TasksPage({
   onAddToExisting,
   onSaveThought,
   onDiscardThought,
+  selectedProjects: controlledSelectedProjects,
+  onSelectedProjectsChange,
 }: Props) {
   const [idx, setIdx] = useState(0);
   const [finished, setFinished] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
-  // -- Filter State --
-  const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
+  const [internalSelectedProjects, setInternalSelectedProjects] = useState<string[]>([]);
+  const selectedProjects = controlledSelectedProjects ?? internalSelectedProjects;
+
+  const setSelectedProjects = (projects: string[]) => {
+    if (onSelectedProjectsChange) {
+      onSelectedProjectsChange(projects);
+    } else {
+      setInternalSelectedProjects(projects);
+    }
+  };
 
   // Filter Logic
   const filteredTasks = useMemo(() => {
@@ -98,7 +111,11 @@ export default function TasksPage({
   const finishCb = onFinish ?? onFinishDay;
 
   function handleSkip() {
-    setIdx((v) => v + 1);
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setIdx((v) => v + 1);
+      setIsTransitioning(false);
+    }, 400);
   }
 
   function handleDo() {
@@ -112,6 +129,15 @@ export default function TasksPage({
     setFinished(true);
     finishCb?.();
   }
+
+  // Dynamic title sizing based on content length
+  const getTitleClass = (text: string) => {
+    const words = text.split(/\s+/).length;
+    const chars = text.length;
+    if (chars <= 10 && words <= 2) return styles.titleXL;
+    if (chars <= 30 && words <= 5) return styles.titleL;
+    return styles.titleM;
+  };
 
   if (finished) {
     return (
@@ -136,6 +162,14 @@ export default function TasksPage({
 
   return (
     <div className={styles.page}>
+      {/* Atmospheric Blobs */}
+      <div className={styles.blobOrange}></div>
+      <div className={styles.blobPurple}></div>
+      <div className={styles.blobBlue}></div>
+
+      {/* Grain Overlay */}
+      <div className={styles.grainOverlay}></div>
+
       {/* Header */}
       <header className={styles.header}>
         <div className={styles.headerLeft}>
@@ -176,45 +210,46 @@ export default function TasksPage({
       <main className={styles.content}>
         {!task ? (
           <div className={styles.emptyState}>
-            <div className={styles.emptyEmoji}>🎉</div>
+            <div className={styles.emptyEmoji}>☀️</div>
+            <h3 className={styles.emptyTitle}>Day complete.</h3>
             <p className={styles.emptyText}>
               {filteredTasks.length === 0 && tasks.length > 0
                 ? "No tasks match your current project filter."
                 : emptyMessage}
             </p>
-            {filteredTasks.length === 0 && tasks.length > 0 && (
-               <button
+            {(filteredTasks.length === 0 && tasks.length > 0) && (
+              <button
                 onClick={() => setSelectedProjects([])}
-                className={styles.clearFiltersBtn}
-               >
-                 Clear filters
-               </button>
+                className={styles.resetBtn}
+              >
+                Reset Focus
+              </button>
             )}
           </div>
         ) : (
-          <div className={styles.taskGrid}>
+          <div className={`${styles.taskGrid} ${isTransitioning ? styles.taskGridTransitioning : ''}`}>
             {/* Left Column: Task Details */}
             <div className={styles.taskDetails}>
-              {/* Project & Duration Row */}
-              <div className={styles.taskMetaRow}>
-                <div className={styles.projectPill}>
-                  <span className={styles.projectDot} />
-                  <span className={styles.projectName}>{task.project}</span>
-                </div>
+              {/* Project Pill (Top) */}
+              <div className={styles.projectPill}>
+                <span className={styles.projectName}>{task.project}</span>
+              </div>
 
+              {/* Title */}
+              <h2 className={`${styles.taskTitle} ${getTitleClass(task.title)}`}>{task.title}</h2>
+
+              {/* Description */}
+              <p className={styles.taskDesc}>{task.desc || "Focus on your next priority."}</p>
+
+              {/* Duration (Bottom) */}
+              {task.duration && (
                 <div className={styles.durationDisplay}>
-                  <svg xmlns="http://www.w3.org/2000/svg" className={styles.clockIcon} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className={styles.clockIcon} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3.5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   <span>{task.duration}</span>
                 </div>
-              </div>
-
-              {/* Title */}
-              <h2 className={styles.taskTitle}>{task.title}</h2>
-
-              {/* Description */}
-              <p className={styles.taskDesc}>{task.desc}</p>
+              )}
             </div>
 
             {/* Divider (Visible on Desktop) */}
@@ -222,30 +257,50 @@ export default function TasksPage({
 
             {/* Right Column: Actions */}
             <div className={styles.actionsColumn}>
-              <button
-                className={styles.doBtn}
-                onClick={handleDo}
-                type="button"
-              >
-                <span>Do it</span>
-                <span className={styles.arrowCircle}>
-                  <svg xmlns="http://www.w3.org/2000/svg" className={styles.arrowIcon} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                  </svg>
-                </span>
-              </button>
+              <div className={styles.doBtnWrapper}>
+                <div className={styles.doBtnGlow}></div>
+                <button
+                  className={styles.doBtn}
+                  onClick={handleDo}
+                  type="button"
+                >
+                  <span>Do</span>
+                  <span className={styles.arrowCircle}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className={styles.arrowIcon} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="4">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                    </svg>
+                  </span>
+                </button>
+              </div>
 
               <button
                 className={styles.skipBtn}
                 onClick={handleSkip}
                 type="button"
               >
-                Skip task
+                <span>Skip Task</span>
+                <div className={styles.skipUnderline}></div>
               </button>
             </div>
           </div>
         )}
       </main>
+
+      {/* Progress Footer */}
+      {filteredTasks.length > 0 && (
+        <footer className={styles.progressFooter}>
+          <div className={styles.progressDots}>
+            {filteredTasks.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setIdx(i)}
+                className={`${styles.progressDot} ${i === (idx % filteredTasks.length) ? styles.progressDotActive : ''}`}
+                aria-label={`Switch to task ${i + 1}`}
+              />
+            ))}
+          </div>
+        </footer>
+      )}
     </div>
   );
 }
