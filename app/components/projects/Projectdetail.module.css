@@ -574,6 +574,28 @@
   color: #6B6B6B;
 }
 
+.taskDeadlineInput {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: #fff;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  color: #1A1A1A;
+  cursor: pointer;
+}
+
+.taskDeadlineInput:focus {
+  outline: none;
+  border-color: #1A1A1A;
+}
+
+.taskDeadlineControls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
 .dependencyBadge {
   display: flex;
   align-items: center;
@@ -1417,6 +1439,7 @@
   font-size: 14px;
   font-weight: 500;
   color: #1A1A1A;
+  cursor: pointer;
 }
 
 .editDeadlineInput:focus {
@@ -1426,4 +1449,13 @@
 
 .editDeadlineInput::placeholder {
   color: #B5B5B5;
+}
+
+.editDeadlineRow {
+  display: flex;
+  gap: 8px;
+}
+
+.editDeadlineRow input {
+  flex: 1;
 }

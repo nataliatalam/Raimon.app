@@ -77,11 +77,39 @@ interface Project {
   activity: ActivityItem[];
 }
 
+type SavedSnapshot = {
+  tasks: Task[];
+  notes: string;
+  name: string;
+  description: string;
+  type: Project['type'];
+  timeframe: string;
+  deadline: string;
+  motivations: string[];
+};
+
 interface ProjectDetailViewProps {
   project: Project;
   onBack?: () => void;
   onSave?: (project: Project) => void;
 }
+
+const toDatePart = (value?: string) => {
+  if (!value) return '';
+  return value.slice(0, 10);
+};
+
+const toTimePart = (value?: string) => {
+  if (!value) return '';
+  const [, time] = value.split('T');
+  return (time ?? '').slice(0, 5);
+};
+
+const buildDateTimeValue = (date?: string, time?: string) => {
+  if (!date) return '';
+  const safeTime = time && time.length > 0 ? time : '23:59';
+  return `${date}T${safeTime}:00`;
+};
 
 /* ─────────────────────────────────────────────────────────── */
 /* Component                                                    */
@@ -115,21 +143,74 @@ export default function ProjectDetailView({
   const [editMotivations, setEditMotivations] = useState<string[]>(project.motivations);
 
   // Track changes
+  const initialSnapshot: SavedSnapshot = {
+    tasks: project.tasks,
+    notes: project.notes,
+    name: project.name,
+    description: project.description,
+    type: project.type,
+    timeframe: project.timeframe,
+    deadline: project.deadline,
+    motivations: project.motivations,
+  };
   const [hasChanges, setHasChanges] = useState(false);
   const [showSaveToast, setShowSaveToast] = useState(false);
-  const [savedState, setSavedState] = useState({ tasks: project.tasks, notes: project.notes });
+  const [savedState, setSavedState] = useState<SavedSnapshot>(initialSnapshot);
 
   useEffect(() => {
-    const tasksChanged = JSON.stringify(tasks) !== JSON.stringify(savedState.tasks);
-    const notesChanged = notes !== savedState.notes;
-    setHasChanges(tasksChanged || notesChanged);
-  }, [tasks, notes, savedState]);
+    setTasks(project.tasks);
+    setNotes(project.notes);
+    setLinks(project.links);
+    setEditName(project.name);
+    setEditDescription(project.description);
+    setEditType(project.type);
+    setEditTimeframe(project.timeframe);
+    setEditDeadline(project.deadline);
+    setEditMotivations(project.motivations);
+    setSavedState({
+      tasks: project.tasks,
+      notes: project.notes,
+      name: project.name,
+      description: project.description,
+      type: project.type,
+      timeframe: project.timeframe,
+      deadline: project.deadline,
+      motivations: project.motivations,
+    });
+  }, [project]);
+
+  useEffect(() => {
+    const snapshot: SavedSnapshot = {
+      tasks,
+      notes,
+      name: editName,
+      description: editDescription,
+      type: editType,
+      timeframe: editTimeframe,
+      deadline: editDeadline,
+      motivations: editMotivations,
+    };
+    setHasChanges(JSON.stringify(snapshot) !== JSON.stringify(savedState));
+  }, [tasks, notes, editName, editDescription, editType, editTimeframe, editDeadline, editMotivations, savedState]);
+
+  const formatDateLabel = (value?: string) => {
+    if (!value) return '';
+    const normalized = value.includes('T') ? value : `${value}T00:00:00`;
+    const date = new Date(normalized);
+    if (Number.isNaN(date.getTime())) return '';
+    const dateString = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const timeString = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    return `${dateString} • ${timeString}`;
+  };
 
   const completedTasks = tasks.filter((t) => t.completed);
   const pendingTasks = tasks.filter((t) => !t.completed);
   const progress = tasks.length
     ? Math.round((completedTasks.length / tasks.length) * 100)
     : 0;
+  const projectDeadlineLabel = project.deadline ? formatDateLabel(project.deadline) || 'No deadline' : 'No deadline';
+  const editDeadlineDate = toDatePart(editDeadline);
+  const editDeadlineTime = toTimePart(editDeadline);
 
   const toggleTask = (id: string) => {
     setTasks(tasks.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)));
@@ -161,6 +242,8 @@ export default function ProjectDetailView({
         title: newTask,
         completed: false,
         subtasks: [],
+        dueDate: '',
+        note: '',
       },
     ]);
     setNewTask('');
@@ -210,11 +293,57 @@ export default function ProjectDetailView({
   };
 
   const handleSave = () => {
-    setSavedState({ tasks, notes });
+    const snapshot: SavedSnapshot = {
+      tasks,
+      notes,
+      name: editName,
+      description: editDescription,
+      type: editType,
+      timeframe: editTimeframe,
+      deadline: editDeadline,
+      motivations: editMotivations,
+    };
+    setSavedState(snapshot);
     setHasChanges(false);
     setShowSaveToast(true);
-    onSave?.({ ...project, tasks, notes });
+    onSave?.({
+      ...project,
+      name: editName,
+      description: editDescription,
+      type: editType,
+      timeframe: editTimeframe,
+      deadline: editDeadline,
+      motivations: editMotivations,
+      tasks,
+      notes,
+      links,
+    });
     setTimeout(() => setShowSaveToast(false), 2000);
+  };
+
+  const handleProjectDeadlineDateChange = (value: string) => {
+    if (!value) {
+      setEditDeadline('');
+      return;
+    }
+    setEditDeadline(buildDateTimeValue(value, editDeadlineTime));
+  };
+
+  const handleProjectDeadlineTimeChange = (value: string) => {
+    if (!editDeadlineDate) return;
+    setEditDeadline(buildDateTimeValue(editDeadlineDate, value));
+  };
+
+  const handleTaskDeadlineChange = (taskId: string, datePart?: string, timePart?: string) => {
+    setTasks(prev =>
+      prev.map((task) => {
+        if (task.id !== taskId) return task;
+        const currentDate = datePart !== undefined ? datePart : toDatePart(task.dueDate);
+        const currentTime = timePart !== undefined ? timePart : toTimePart(task.dueDate);
+        const combined = currentDate ? buildDateTimeValue(currentDate, currentTime) : '';
+        return { ...task, dueDate: combined };
+      }),
+    );
   };
 
   const handleBack = () => {
@@ -385,13 +514,21 @@ export default function ProjectDetailView({
                     </div>
                     <div className={styles.editField}>
                       <span className={styles.editLabel}>Deadline</span>
-                      <input
-                        type="text"
-                        className={styles.editDeadlineInput}
-                        value={editDeadline}
-                        onChange={(e) => setEditDeadline(e.target.value)}
-                        placeholder="e.g., Dec 31"
-                      />
+                      <div className={styles.editDeadlineRow}>
+                        <input
+                          type="date"
+                          className={styles.editDeadlineInput}
+                          value={editDeadlineDate}
+                          onChange={(e) => handleProjectDeadlineDateChange(e.target.value)}
+                        />
+                        <input
+                          type="time"
+                          className={styles.editDeadlineInput}
+                          value={editDeadlineTime}
+                          onChange={(e) => handleProjectDeadlineTimeChange(e.target.value)}
+                          disabled={!editDeadlineDate}
+                        />
+                      </div>
                     </div>
                   </div>
                 </>
@@ -436,7 +573,7 @@ export default function ProjectDetailView({
               <Clock size={15} />
               <span>{project.timeframe}</span>
               <span className={styles.metaDivider} />
-              <span className={styles.metaAccent}>{project.deadline}</span>
+              <span className={styles.metaAccent}>{projectDeadlineLabel}</span>
             </div>
             <div className={styles.metaPill}>
               <Target size={15} />
@@ -489,6 +626,8 @@ export default function ProjectDetailView({
                       (task.subtasks.filter((s) => s.completed).length / task.subtasks.length) * 100
                     )
                   : 0;
+                const taskDatePart = toDatePart(task.dueDate);
+                const taskTimePart = toTimePart(task.dueDate);
 
                 return (
                   <div key={task.id} className={styles.taskCard}>
@@ -510,10 +649,31 @@ export default function ProjectDetailView({
                         </div>
 
                         <div className={styles.taskMeta}>
-                          {task.dueDate && (
+                          {isEditMode ? (
                             <span className={styles.taskMetaItem}>
-                              <Calendar size={12} /> {task.dueDate}
+                              <Calendar size={12} />
+                              <div className={styles.taskDeadlineControls}>
+                                <input
+                                  type="date"
+                                  className={styles.taskDeadlineInput}
+                                  value={taskDatePart}
+                                  onChange={(e) => handleTaskDeadlineChange(task.id, e.target.value, undefined)}
+                                />
+                                <input
+                                  type="time"
+                                  className={styles.taskDeadlineInput}
+                                  value={taskTimePart}
+                                  onChange={(e) => handleTaskDeadlineChange(task.id, undefined, e.target.value)}
+                                  disabled={!taskDatePart}
+                                />
+                              </div>
                             </span>
+                          ) : (
+                            task.dueDate && (
+                              <span className={styles.taskMetaItem}>
+                                <Calendar size={12} /> {formatDateLabel(task.dueDate)}
+                              </span>
+                            )
                           )}
                           {task.subtasks?.length > 0 && (
                             <span className={styles.taskMetaItem}>

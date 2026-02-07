@@ -7,11 +7,12 @@ interface ProjectFilterProps {
   allTasks: Task[];
   selectedProjects: string[];
   onChange: (projects: string[]) => void;
+  renderTrigger?: (details: { title: string; onOpen: () => void; isOpen: boolean }) => React.ReactNode;
 }
 
 type FilterTab = 'all' | 'work' | 'personal';
 
-export default function ProjectFilter({ allTasks, selectedProjects, onChange }: ProjectFilterProps) {
+export default function ProjectFilter({ allTasks, selectedProjects, onChange, renderTrigger }: ProjectFilterProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
   const [pendingSelection, setPendingSelection] = useState<string[]>([]);
@@ -109,22 +110,35 @@ export default function ProjectFilter({ allTasks, selectedProjects, onChange }: 
   // Reusable Collapsed Button Content - Pill Layout
   const CollapsedButtonContent = () => (
     <div className="flex items-center gap-3">
-      <span className="text-gray-900 text-sm font-bold whitespace-nowrap">
-        {title}
-      </span>
-
-      {/* Divider */}
+      <span className="text-gray-900 text-sm font-bold whitespace-nowrap">{title}</span>
       <span className="w-px h-3 bg-gray-300" />
-
       <div className="flex items-center gap-1.5 text-orange group-hover:text-orange/80 transition-colors">
-        <span className="text-[11px] font-bold tracking-widest uppercase">
-          Edit
-        </span>
-        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M5 12h14M12 5l7 7-7 7"/>
+        <span className="text-[11px] font-bold tracking-widest uppercase">Edit</span>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M5 12h14M12 5l7 7-7 7" />
         </svg>
       </div>
     </div>
+  );
+
+  const defaultTrigger = (
+    <button
+      onClick={() => setIsOpen(true)}
+      className="group bg-white border border-gray-200 rounded-full px-5 py-2.5 shadow-sm hover:shadow-md hover:border-orange/30 transition-all duration-300"
+      type="button"
+    >
+      <CollapsedButtonContent />
+    </button>
   );
 
   return (
@@ -138,12 +152,9 @@ export default function ProjectFilter({ allTasks, selectedProjects, onChange }: 
         without the parent container collapsing its height/width.
       */}
       <div className={`${isOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-         <button
-            onClick={() => setIsOpen(true)}
-            className="group bg-white border border-gray-200 rounded-full px-5 py-2.5 shadow-sm hover:shadow-md hover:border-orange/30 transition-all duration-300"
-          >
-            <CollapsedButtonContent />
-         </button>
+        {renderTrigger
+          ? renderTrigger({ title, onOpen: () => setIsOpen(true), isOpen })
+          : defaultTrigger}
       </div>
 
       {/* Expanded Modal UI - Absolute positioned relative to this container */}

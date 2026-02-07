@@ -110,6 +110,19 @@ export const ProjectApiRecordSchema = z.object({
   progress: z.number().nullable().optional(),
   archived_at: z.string().nullable().optional(),
   created_at: z.string().nullable().optional(),
+  deadline: z.string().nullable().optional(),
+  target_end_date: z.string().nullable().optional(),
+  task_deadlines: z
+    .array(
+      z.object({
+        id: z.string(),
+        title: z.string(),
+        deadline: z.string().nullable().optional(),
+        status: z.string().nullable().optional(),
+        project_id: z.string().nullable().optional(),
+      })
+    )
+    .optional(),
 });
 
 // ============ Flower Points & Graveyard ============

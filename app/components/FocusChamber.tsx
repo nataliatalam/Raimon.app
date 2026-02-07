@@ -1,29 +1,33 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
+import { ArrowRight } from 'lucide-react';
+import MicroLabel from './ui/MicroLabel';
+import TheVault from './TheVault';
+import BrainDump from './BrainDump';
+import ChamberGuide from './ChamberGuide';
+import OxygenRoom from './OxygenRoom';
 import styles from './FocusChamber.module.css';
 
 export type FocusTask = {
-  title: string; // use "\n" for line breaks
+  title: string;
   desc: string;
   project: string;
-  duration?: string; // optional (e.g. "25 min")
+  duration?: string;
 };
 
 export type FocusResource = {
   id: string;
   kind: 'doc' | 'sheet' | 'link';
   name: string;
-  action?: string; // e.g. "View document"
+  action?: string;
   onClick?: () => void;
 };
 
 type Props = {
   task: FocusTask;
   resources?: FocusResource[];
-
   onSend?: (text: string) => void;
-
   onStuck?: () => void;
   onBreak?: () => void;
   onResume?: () => void;
@@ -33,25 +37,13 @@ type Props = {
 export default function FocusChamber({
   task,
   resources = [],
-  onSend,
   onStuck,
   onBreak,
   onResume,
   onDone,
 }: Props) {
-  const [text, setText] = useState('');
   const [isOnBreak, setIsOnBreak] = useState(false);
-
-  const hasResources = resources.length > 0;
-
-  const projectDotClass = useMemo(() => styles.projectDot, []);
-
-  function handleSend() {
-    const msg = text.trim();
-    if (!msg) return;
-    onSend?.(msg);
-    setText('');
-  }
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   const handleBreakToggle = () => {
     if (isOnBreak) {
@@ -63,162 +55,109 @@ export default function FocusChamber({
     }
   };
 
+  const stuckBtnClass =
+    'px-6 py-2.5 rounded-full font-bold text-[10px] tracking-[0.2em] uppercase border border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100 transition-all active:scale-95 whitespace-nowrap text-center';
+  const breakBtnClass =
+    'px-6 py-2.5 rounded-full font-bold text-[10px] tracking-[0.2em] uppercase border-2 border-[#3B82F6] bg-white text-[#3B82F6] hover:bg-blue-50 transition-all active:scale-95 whitespace-nowrap text-center shadow-sm';
+  const primaryBtnClass =
+    'px-8 py-2.5 rounded-full font-bold text-[10px] tracking-[0.2em] uppercase bg-black text-white hover:bg-[#FF6B00] transition-all shadow-lg shadow-black/5 active:scale-95 whitespace-nowrap text-center';
+
   return (
-    <div className={`${styles.page} ${isOnBreak ? styles.breakMode : ''}`}>
-      {isOnBreak && <div className={styles.breakOverlay} />}
-      {/* Header */}
-      <header className={styles.header}>
-        <div>
-          <div className={styles.pageLabel}>Focus Chamber</div>
-          <div className={styles.pageTitle}>Stay focused</div>
+    <div className={`w-full h-full flex flex-col gap-4 pt-14 pl-14 pr-8 pb-8 animate-in fade-in slide-in-from-bottom-4 duration-1000 relative ${isOnBreak ? styles.breakMode : ''}`}>
+      {/* Oxygen Room Overlay */}
+      {isOnBreak && <OxygenRoom onReturn={handleBreakToggle} />}
+
+      {/* Workspace Header with Integrated Brain Dump */}
+      <div className={`flex items-end justify-between shrink-0 ${isOnBreak ? 'opacity-0 pointer-events-none' : ''}`}>
+        <div className="flex items-center gap-8">
+          <div>
+            <MicroLabel text="RAIMON WORKSPACE" color="text-zinc-400" />
+            <div className="flex items-center gap-6 mt-1">
+              <h2 className="text-4xl font-medium tracking-tight text-zinc-900">
+                Focus <span className="text-[#FF6B00] font-black italic">Chamber</span>
+              </h2>
+              <BrainDump />
+            </div>
+          </div>
         </div>
-      </header>
 
-      {/* Main */}
-      <div className={styles.main}>
-        {/* Left */}
-        <section className={styles.left}>
-          <div className={styles.taskSection}>
-            <div className={styles.projectPill}>
-              <span className={projectDotClass} />
-              <span className={styles.projectName}>{task.project}</span>
-            </div>
-
-            <h1 className={styles.taskTitle}>{task.title}</h1>
-            <p className={styles.taskDesc}>{task.desc}</p>
-
-            {/* ✅ Resources NOW sit right under the task text */}
-            {hasResources ? (
-              <div className={styles.resources}>
-                <div className={styles.sectionLabel}>Related resources</div>
-
-                <div className={styles.resourcesList}>
-                  {resources.map((r) => (
-                    <button
-                      key={r.id}
-                      type="button"
-                      className={styles.resourcePill}
-                      onClick={r.onClick}
-                    >
-                      <span
-                        className={[
-                          styles.resourceIconCircle,
-                          r.kind === 'doc' ? styles.iconDoc : '',
-                          r.kind === 'sheet' ? styles.iconSheet : '',
-                          r.kind === 'link' ? styles.iconLink : '',
-                        ].join(' ')}
-                      >
-                        {r.kind === 'doc' && (
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="1.6"
-                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                            />
-                          </svg>
-                        )}
-                        {r.kind === 'sheet' && (
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="1.6"
-                              d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-                            />
-                          </svg>
-                        )}
-                        {r.kind === 'link' && (
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="1.6"
-                              d="M13.828 10.172a4 4 0 010 5.656l-1.414 1.414a4 4 0 01-5.656-5.656l1.414-1.414a4 4 0 015.656 0M10.172 13.828a4 4 0 010-5.656l1.414-1.414a4 4 0 015.656 5.656l-1.414 1.414a4 4 0 01-5.656 0"
-                            />
-                          </svg>
-                        )}
-                      </span>
-
-                      <span className={styles.resourceText}>
-                        <span className={styles.resourceName}>{r.name}</span>
-                        <span className={styles.resourceAction}>{r.action ?? 'Open'}</span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </section>
-
-        {/* Right */}
-        <aside className={styles.right}>
-          <div className={styles.raimonBox}>
-            <div className={styles.raimonMessage}>
-              <div className={styles.raimonGreeting}>Ready to help you with this task.</div>
-              <div className={styles.raimonSubtext}>
-                I can summarize the docs, find key numbers, or help you write comments.
-              </div>
-            </div>
-
-            <div className={styles.inputRow}>
-              <input
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSend();
-                }}
-                placeholder="Ask anything..."
+        <div className="flex items-center gap-4 pb-1">
+          {/* Guide Button */}
+          <button
+            onClick={() => setIsGuideOpen(true)}
+            className="flex items-center gap-3 px-4 py-2 bg-[#0D1117] rounded-full border border-white/10 hover:border-[#FF6B00]/40 transition-all hover:shadow-xl hover:shadow-black/20 group"
+          >
+            <span className="text-[11px] font-black text-[#FF6B00] uppercase tracking-wider">Guide</span>
+            <div className="h-4 w-[1px] bg-white/10 group-hover:bg-[#FF6B00]/30" />
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-black tracking-[0.15em] text-white/40 group-hover:text-white uppercase transition-colors">
+                Open
+              </span>
+              <ArrowRight
+                size={10}
+                className="text-white/20 group-hover:text-white transition-transform group-hover:translate-x-0.5"
               />
-              <button
-                type="button"
-                className={styles.sendBtn}
-                onClick={handleSend}
-                aria-label="Send"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                </svg>
-              </button>
             </div>
-          </div>
+          </button>
 
-          <div className={styles.actionsRow}>
-            <button type="button" className={[styles.actionBtn, styles.btnOutline].join(' ')} onClick={onStuck}>
-              I&apos;m stuck
+          <div className="flex items-center gap-3">
+            <button className={stuckBtnClass} onClick={onStuck}>
+              I&apos;m Stuck
             </button>
             <button
-              type="button"
-              className={[
-                styles.actionBtn,
-                isOnBreak ? styles.btnImBack : styles.btnBlue,
-              ].join(' ')}
+              className={breakBtnClass}
               onClick={handleBreakToggle}
             >
-              {isOnBreak ? "I'm back" : 'Take a break'}
+              Break
             </button>
-            <button type="button" className={[styles.actionBtn, styles.btnOrange].join(' ')} onClick={onDone}>
-              Done
+            <button className={primaryBtnClass} onClick={onDone}>
+              Mark as Done
             </button>
           </div>
-        </aside>
+        </div>
       </div>
+
+      {/* Modern Bento Layout */}
+      <div className={`flex-1 grid grid-cols-12 gap-4 min-h-0 pb-2 ${isOnBreak ? 'opacity-0 pointer-events-none' : ''}`}>
+        {/* Task Focus Card */}
+        <div className="col-span-7 flex flex-col bg-white rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.02)] border border-zinc-100 overflow-hidden relative group hover:shadow-[0_30px_80px_rgba(0,0,0,0.04)] transition-all duration-700">
+          <div className="p-6 lg:p-8 flex flex-col h-full overflow-y-auto">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="px-3 py-1 bg-[#FF6B00]/5 rounded-full border border-[#FF6B00]/10">
+                <span className="font-black text-[9px] tracking-widest text-[#FF6B00] uppercase">{task.project}</span>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <h1 className="text-3xl lg:text-5xl font-light tracking-tight leading-tight text-zinc-900 whitespace-pre-line">
+                {task.title}
+                <span className="text-[#FF6B00] font-medium">.</span>
+              </h1>
+            </div>
+
+            <div className="flex-1 max-w-2xl">
+              <div className="mb-2">
+                <MicroLabel text="OBJECTIVE & CONTEXT" />
+              </div>
+              <p className="text-base lg:text-xl font-normal text-zinc-400 leading-relaxed tracking-tight">
+                {task.desc}
+              </p>
+            </div>
+          </div>
+
+          <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-[#FF6B00]/5 rounded-full blur-3xl opacity-50 pointer-events-none" />
+        </div>
+
+        {/* Sidebar - The Vault */}
+        <div className="col-span-5 flex flex-col overflow-hidden">
+          <div className="flex-1 bg-[#0D1117] rounded-[2.5rem] shadow-2xl border border-white/5 flex flex-col overflow-hidden hover:shadow-[0_40px_100px_rgba(0,0,0,0.3)] transition-all duration-700">
+            <TheVault resources={resources} />
+          </div>
+        </div>
+      </div>
+
+      {/* Chamber Guide Overlay */}
+      {isGuideOpen && <ChamberGuide onClose={() => setIsGuideOpen(false)} />}
     </div>
   );
 }

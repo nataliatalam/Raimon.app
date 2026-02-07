@@ -115,6 +115,22 @@
   min-width: 180px;
 }
 
+.guideCta {
+  border: none;
+  background: none;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  font-weight: 800;
+  color: var(--orange);
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+.guideCta:hover {
+  color: var(--text-dark);
+}
+
 .streakHeader {
   display: flex;
   align-items: center;
