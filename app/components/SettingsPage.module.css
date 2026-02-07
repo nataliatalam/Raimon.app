@@ -347,6 +347,68 @@
   text-align: center;
 }
 
+/* Google Calendar Connect Button */
+.connectBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 20px;
+  background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(66, 133, 244, 0.3);
+}
+
+.connectBtn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(66, 133, 244, 0.4);
+}
+
+.connectBtn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.connectBtn svg {
+  flex-shrink: 0;
+}
+
+/* Sync Info Text */
+.syncInfo {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  margin: 8px 0;
+}
+
+/* Disconnect Button */
+.disconnectBtn {
+  display: block;
+  width: 100%;
+  padding: 10px 16px;
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #ef4444;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 8px;
+}
+
+.disconnectBtn:hover {
+  background: rgba(239, 68, 68, 0.05);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
 /* Mobile */
 @media (max-width: 768px) {
   .page {

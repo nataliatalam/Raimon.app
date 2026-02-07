@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 import logging
 import time
 import os
-from routers import auth, users, projects, tasks, next_do, dashboard, analytics, notifications, reminders, integrations, feedback
+from routers import auth, users, projects, tasks, next_do, dashboard, analytics, notifications, reminders, integrations, feedback, google_calendar
 from routers.agents import router as agents_router
 from routers import agent_mvp
 from core.config import get_settings
@@ -133,6 +133,7 @@ app.include_router(analytics.router)
 app.include_router(notifications.router)
 app.include_router(reminders.router)
 app.include_router(integrations.router)
+app.include_router(google_calendar.router)
 app.include_router(agents_router)
 app.include_router(agent_mvp.router)
 app.include_router(feedback.router)

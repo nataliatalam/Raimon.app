@@ -63,6 +63,108 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def get_calendar_context(user_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Fetch today's calendar context for AI decision making.
+    Returns None if calendar is not connected.
+    """
+    try:
+        from core.supabase import get_supabase_admin
+        from datetime import date, timedelta, timezone
+
+        supabase = get_supabase_admin()
+        today = date.today()
+        tomorrow = today + timedelta(days=1)
+
+        # Check if user has calendar connected
+        token_result = (
+            supabase.table("google_oauth_tokens")
+            .select("id")
+            .eq("user_id", user_id)
+            .execute()
+        )
+
+        if not token_result.data:
+            return None  # Calendar not connected
+
+        # Get today's events
+        events_result = (
+            supabase.table("calendar_events")
+            .select("*")
+            .eq("user_id", user_id)
+            .neq("status", "cancelled")
+            .gte("start_time", today.isoformat())
+            .lt("start_time", tomorrow.isoformat())
+            .order("start_time", desc=False)
+            .execute()
+        )
+
+        events = events_result.data or []
+
+        # Calculate metrics for AI context
+        total_busy_minutes = 0
+        meetings_count = 0
+
+        for event in events:
+            if event.get("busy_status") == "busy":
+                start = datetime.fromisoformat(event["start_time"].replace("Z", "+00:00"))
+                end = datetime.fromisoformat(event["end_time"].replace("Z", "+00:00"))
+                total_busy_minutes += int((end - start).total_seconds() / 60)
+            if event.get("event_type") == "meeting":
+                meetings_count += 1
+
+        # Find free time blocks for task recommendations
+        free_blocks = []
+        now = datetime.now(timezone.utc)
+        work_end = now.replace(hour=18, minute=0, second=0, microsecond=0)
+
+        sorted_events = sorted(
+            [e for e in events if e.get("busy_status") == "busy"],
+            key=lambda x: x["start_time"]
+        )
+
+        current_time = now
+        for event in sorted_events:
+            event_start = datetime.fromisoformat(event["start_time"].replace("Z", "+00:00"))
+            if event_start > current_time:
+                gap_minutes = int((event_start - current_time).total_seconds() / 60)
+                if gap_minutes >= 15:  # Consider blocks >= 15 mins
+                    free_blocks.append({
+                        "start": current_time.isoformat(),
+                        "end": event_start.isoformat(),
+                        "duration_minutes": gap_minutes,
+                    })
+            event_end = datetime.fromisoformat(event["end_time"].replace("Z", "+00:00"))
+            current_time = max(current_time, event_end)
+
+        # Add remaining time after last event
+        if current_time < work_end:
+            gap_minutes = int((work_end - current_time).total_seconds() / 60)
+            if gap_minutes >= 15:
+                free_blocks.append({
+                    "start": current_time.isoformat(),
+                    "end": work_end.isoformat(),
+                    "duration_minutes": gap_minutes,
+                })
+
+        # Get next free block duration for task selection
+        next_free_block_minutes = free_blocks[0]["duration_minutes"] if free_blocks else 120
+
+        return {
+            "has_calendar": True,
+            "date": today.isoformat(),
+            "total_events": len(events),
+            "meetings_count": meetings_count,
+            "total_busy_minutes": total_busy_minutes,
+            "free_blocks": free_blocks,
+            "next_free_block_minutes": next_free_block_minutes,
+            "recommended_task_duration": min(next_free_block_minutes, 60),  # Cap at 60 mins
+        }
+    except Exception as e:
+        logger.warning(f"Failed to fetch calendar context (non-blocking): {e}")
+        return None
+
+
 class RaimonOrchestrator:
     """Main orchestration engine for the Raimon agent system."""
 
@@ -283,6 +385,13 @@ class RaimonOrchestrator:
                 logger.warning(f"Could not fetch user profile: {str(e)}")
                 user_profile = UserProfileAnalysis()
 
+            # Fetch calendar context for AI-aware task selection
+            calendar_context = get_calendar_context(user_id)
+            if calendar_context:
+                state.calendar_context = calendar_context
+                logger.info(f"📅 Calendar context loaded: {calendar_context.get('meetings_count', 0)} meetings, "
+                           f"{calendar_context.get('next_free_block_minutes', 120)} mins free next")
+
             # Get selection constraints if not already available
             if not state.selection_constraints:
                 # Get latest check-in from daily_check_ins table using service-role client
@@ -324,8 +433,14 @@ class RaimonOrchestrator:
                 else:
                     # No check-in yet - use default balanced constraints
                     logger.info(f"📋 No check-in found, using default constraints")
+                    # Use calendar context to set max_minutes if available
+                    default_max_minutes = 120
+                    if calendar_context and calendar_context.get("recommended_task_duration"):
+                        default_max_minutes = calendar_context["recommended_task_duration"]
+                        logger.info(f"📅 Using calendar-aware max_minutes: {default_max_minutes}")
+
                     state.selection_constraints = {
-                        "max_minutes": 120,
+                        "max_minutes": default_max_minutes,
                         "mode": "balanced",
                         "current_energy": 5,  # Default medium energy
                         "avoid_tags": [],

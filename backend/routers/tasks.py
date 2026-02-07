@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, status, Depends, Query
 from datetime import datetime, timezone
 from typing import Optional, List
 from uuid import UUID
+import re
 from models.task import (
     TaskCreate,
     TaskUpdate,
@@ -24,6 +25,29 @@ import logging
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Tasks"])
+
+
+def safe_parse_datetime(timestamp_str: str) -> datetime:
+    """Safely parse ISO format timestamps, handling various decimal precisions."""
+    if not timestamp_str:
+        return datetime.now(timezone.utc)
+    ts = timestamp_str.replace("Z", "+00:00")
+    # Normalize microseconds to exactly 6 digits
+    match = re.match(r'(.+\.)(\d+)([+-].+)', ts)
+    if match:
+        prefix, decimals, suffix = match.groups()
+        decimals = decimals[:6].ljust(6, '0')
+        ts = f"{prefix}{decimals}{suffix}"
+    try:
+        return datetime.fromisoformat(ts)
+    except ValueError:
+        try:
+            base_ts = ts.split('.')[0]
+            tz_part = '+' + ts.split('+')[1] if '+' in ts else '+00:00'
+            return datetime.fromisoformat(f"{base_ts}{tz_part}")
+        except Exception:
+            logger.warning(f"Failed to parse timestamp: {timestamp_str}")
+            return datetime.now(timezone.utc)
 
 
 # Helper functions
@@ -646,8 +670,8 @@ async def complete_task(
         for s in all_sessions.data or []:
             # Only count completed sessions (those with both start and end time)
             if s.get("start_time") and s.get("end_time"):
-                start = datetime.fromisoformat(s["start_time"].replace("Z", "+00:00"))
-                end = datetime.fromisoformat(s["end_time"].replace("Z", "+00:00"))
+                start = safe_parse_datetime(s["start_time"])
+                end = safe_parse_datetime(s["end_time"])
                 total_duration += int((end - start).total_seconds() / 60)
 
         # Use provided duration or calculated
@@ -664,6 +688,28 @@ async def complete_task(
             .eq("id", task_id)
             .execute()
         )
+
+        # Check if all tasks in the project are completed → auto-complete project for "Beyond"
+        project_completed = False
+        if task.get("project_id"):
+            try:
+                project_id = task["project_id"]
+                project_tasks = (
+                    supabase.table("tasks")
+                    .select("status")
+                    .eq("project_id", project_id)
+                    .execute()
+                )
+                if project_tasks.data:
+                    all_completed = all(t["status"] == "completed" for t in project_tasks.data)
+                    if all_completed:
+                        supabase.table("projects").update({
+                            "status": "completed"
+                        }).eq("id", project_id).execute()
+                        project_completed = True
+                        logger.info(f"🎉 Project {project_id} auto-completed (all tasks done)")
+            except Exception as proj_err:
+                logger.warning(f"Project auto-completion check failed (non-blocking): {proj_err}")
 
         # Trigger DO_ACTION agent event for task completion
         agent_motivation = None
@@ -688,6 +734,7 @@ async def complete_task(
                 "session": session,
                 "total_duration": actual_duration,
                 "agent_motivation": agent_motivation,
+                "project_completed": project_completed,
             },
         }
     except HTTPException:

@@ -627,7 +627,7 @@ export default function LoginPage() {
                             : 'Sending code...'
                           : isLoginMode
                           ? 'Log in'
-                          : 'Send 6-digit code'}
+                          : 'Sign up'}
                       </button>
 
                       <div className={styles.divider}>
@@ -843,7 +843,7 @@ export default function LoginPage() {
                       : 'Sending code...'
                     : isLoginMode
                     ? 'Log in'
-                    : 'Send 6-digit code'}
+                    : 'Sign up'}
                 </button>
 
                 <div className={styles.mobileDivider}>
