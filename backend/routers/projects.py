@@ -26,7 +26,7 @@ router = APIRouter(prefix="/api/projects", tags=["Projects"])
 settings = get_settings()
 
 
-def build_public_file_url(file_path: str | None) -> Optional[str]:
+def build_public_file_url(file_path: Optional[str]) -> Optional[str]:
     if not file_path:
         return None
     base_url = settings.supabase_url.rstrip("/")
