@@ -1,16 +1,93 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styles from './SettingsPage.module.css';
+import { apiFetch } from '../../lib/api-client';
 
 type Props = {
   onRetakeOnboarding?: (resetData: boolean) => void;
   onExport?: (type: string) => void;
 };
 
+type CalendarStatus = {
+  connected: boolean;
+  status: string;
+  last_synced_at?: string;
+  events_synced?: number;
+};
+
 export default function SettingsPage({ onRetakeOnboarding, onExport }: Props) {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [resetData, setResetData] = useState(false);
+  const [calendarStatus, setCalendarStatus] = useState<CalendarStatus | null>(null);
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [syncLoading, setSyncLoading] = useState(false);
+
+  useEffect(() => {
+    fetchCalendarStatus();
+  }, []);
+
+  const fetchCalendarStatus = async () => {
+    try {
+      const response = await apiFetch<{ success: boolean; data: CalendarStatus }>('/api/calendar/status');
+      if (response.success) {
+        setCalendarStatus(response.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch calendar status:', error);
+    }
+  };
+
+  const handleConnectCalendar = async () => {
+    setCalendarLoading(true);
+    try {
+      const response = await apiFetch<{ success: boolean; data: { authorization_url: string } }>('/api/calendar/auth/url');
+      console.log('Calendar auth response:', response);
+      if (response.success && response.data.authorization_url) {
+        window.location.href = response.data.authorization_url;
+      } else {
+        alert('Failed to get authorization URL from server.');
+      }
+    } catch (error: unknown) {
+      console.error('Failed to get calendar auth URL:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Failed to connect to Google Calendar: ${errorMessage}`);
+    } finally {
+      setCalendarLoading(false);
+    }
+  };
+
+  const handleSyncCalendar = async () => {
+    setSyncLoading(true);
+    try {
+      const response = await apiFetch<{ success: boolean; data: { events_synced: number } }>('/api/calendar/sync', {
+        method: 'POST',
+        body: { full_sync: false, days_back: 30, days_forward: 90 },
+      });
+      if (response.success) {
+        alert(`Synced ${response.data.events_synced} events from your calendar!`);
+        fetchCalendarStatus();
+      }
+    } catch (error) {
+      console.error('Failed to sync calendar:', error);
+      alert('Failed to sync calendar. Please try again.');
+    } finally {
+      setSyncLoading(false);
+    }
+  };
+
+  const handleDisconnectCalendar = async () => {
+    if (!confirm('Are you sure you want to disconnect Google Calendar? This will remove all synced events.')) {
+      return;
+    }
+    try {
+      await apiFetch('/api/calendar/disconnect', { method: 'DELETE' });
+      setCalendarStatus({ connected: false, status: 'not_connected' });
+    } catch (error) {
+      console.error('Failed to disconnect calendar:', error);
+      alert('Failed to disconnect calendar. Please try again.');
+    }
+  };
 
   const handleExport = (type: string) => {
     if (onExport) {
@@ -126,6 +203,69 @@ export default function SettingsPage({ onRetakeOnboarding, onExport }: Props) {
 
             {/* Right Column */}
             <div className={styles.settingsColumn}>
+              {/* Google Calendar Card */}
+              <div className={styles.card}>
+                <div className={styles.cardHeader}>
+                  <div className={styles.cardIcon}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                      <line x1="16" y1="2" x2="16" y2="6"></line>
+                      <line x1="8" y1="2" x2="8" y2="6"></line>
+                      <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
+                  </div>
+                  <h2 className={styles.cardTitle}>Google Calendar</h2>
+                </div>
+                <p className={styles.cardDesc}>
+                  {calendarStatus?.connected
+                    ? `Connected • ${calendarStatus.events_synced || 0} events synced`
+                    : 'Connect your calendar so the AI can help schedule around your commitments.'}
+                </p>
+
+                {calendarStatus?.connected ? (
+                  <>
+                    <button
+                      onClick={handleSyncCalendar}
+                      className={styles.actionBtn}
+                      type="button"
+                      disabled={syncLoading}
+                    >
+                      <span>{syncLoading ? 'Syncing...' : 'Sync now'}</span>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/>
+                      </svg>
+                    </button>
+                    {calendarStatus.last_synced_at && (
+                      <p className={styles.syncInfo}>
+                        Last synced: {new Date(calendarStatus.last_synced_at).toLocaleString()}
+                      </p>
+                    )}
+                    <button
+                      onClick={handleDisconnectCalendar}
+                      className={styles.disconnectBtn}
+                      type="button"
+                    >
+                      Disconnect
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={handleConnectCalendar}
+                    className={styles.connectBtn}
+                    type="button"
+                    disabled={calendarLoading}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                      <line x1="16" y1="2" x2="16" y2="6"></line>
+                      <line x1="8" y1="2" x2="8" y2="6"></line>
+                      <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
+                    <span>{calendarLoading ? 'Connecting...' : 'Connect Google Calendar'}</span>
+                  </button>
+                )}
+              </div>
+
               {/* Export Data Card */}
               <div className={styles.card}>
                 <div className={styles.cardHeader}>

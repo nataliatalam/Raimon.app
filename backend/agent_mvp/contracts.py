@@ -120,6 +120,9 @@ class GraphState(BaseModel):
     microtasks: Optional[List[Any]] = None
     day_insights: Optional[List[Any]] = None
 
+    # Calendar context for AI training
+    calendar_context: Optional[Dict[str, Any]] = None  # Today's schedule, free blocks, etc.
+
 
 class AgentMVPResponse(BaseModel):
     """Final API response."""

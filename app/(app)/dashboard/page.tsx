@@ -20,6 +20,14 @@ import type {
 import { storeActiveTask } from '../../../lib/activeTask';
 import { useSession } from '../../components/providers/SessionProvider';
 
+type CalendarEvent = {
+  id: string;
+  title: string;
+  start_time: string;
+  end_time: string;
+  event_type: string;
+  location?: string;
+};
 const EVENTS_STORAGE_KEY = 'raimon_calendar_events';
 
 function loadStoredEvents(): CalendarEvent[] {
@@ -103,6 +111,7 @@ export default function DashboardPage() {
   const { session, status } = useSession();
   const [stage, setStage] = useState<'checkin' | 'home' | 'tasks'>('checkin');
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [tasksError, setTasksError] = useState('');
   const [summaryData, setSummaryData] = useState<DaySummaryData | undefined>(undefined);
@@ -138,6 +147,9 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
+    if (stage !== 'tasks' || status !== 'ready' || !session.accessToken) return;
+    fetchTasks();
+    fetchCalendarEvents();
     if ((stage === 'home' || stage === 'tasks') && status === 'ready' && session.accessToken) {
       fetchTasks();
     }
@@ -177,6 +189,17 @@ export default function DashboardPage() {
     };
   }, [stage, status, session.accessToken]);
 
+  async function fetchCalendarEvents() {
+    try {
+      const response = await apiFetch<{ success: boolean; data: { events: CalendarEvent[] } }>('/api/calendar/today');
+      if (response.success && response.data.events) {
+        setCalendarEvents(response.data.events);
+      }
+    } catch {
+      // Silently fail - calendar is optional
+    }
+  }
+
   async function fetchTasks() {
     setTasksLoading(true);
     setTasksError('');
@@ -203,6 +226,34 @@ export default function DashboardPage() {
     };
   }
 
+  function mapCalendarEventToTask(event: CalendarEvent): Task {
+    const startTime = new Date(event.start_time);
+    const endTime = new Date(event.end_time);
+    const durationMinutes = Math.round((endTime.getTime() - startTime.getTime()) / 60000);
+    const timeStr = startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    return {
+      id: `calendar-${event.id}`,
+      title: event.title,
+      desc: event.location ? `📍 ${event.location} • ${timeStr}` : `🕐 ${timeStr}`,
+      project: '📅 Calendar',
+      duration: `${durationMinutes} min`,
+      durationMinutes,
+    };
+  }
+
+  // Combine tasks with calendar events
+  const allTasks = useMemo(() => {
+    const calendarTasks = calendarEvents.map(mapCalendarEventToTask);
+    // Sort calendar events by time, put them first
+    calendarTasks.sort((a, b) => {
+      const timeA = a.desc.match(/\d{1,2}:\d{2}/)?.[0] || '';
+      const timeB = b.desc.match(/\d{1,2}:\d{2}/)?.[0] || '';
+      return timeA.localeCompare(timeB);
+    });
+    return [...calendarTasks, ...tasks];
+  }, [tasks, calendarEvents]);
+
   function handleCheckInComplete() {
     if (typeof window !== 'undefined' && session.user?.id) {
       const today = new Date().toISOString().split('T')[0];
@@ -214,6 +265,13 @@ export default function DashboardPage() {
 
   async function handleStartTask(task: Task) {
     if (!task.id) return;
+
+    // Calendar events can't be "started" as tasks
+    if (task.id.startsWith('calendar-')) {
+      alert(`📅 "${task.title}" is a calendar event scheduled for ${task.desc.replace(/[📍🕐]\s*/g, '')}`);
+      return;
+    }
+
     setTasksError('');
     try {
       await apiFetch(`/api/tasks/${task.id}/start`, { method: 'POST', body: {} });
@@ -302,7 +360,7 @@ export default function DashboardPage() {
 
   return (
     <TasksPage
-      tasks={tasks}
+      tasks={allTasks}
       loading={tasksLoading}
       errorMessage={tasksError}
       summaryData={summaryData}

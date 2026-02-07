@@ -11,6 +11,16 @@ import styles from './projects/ProjectsPage.module.css';
 import { useSession } from './providers/SessionProvider';
 import { apiFetch, ApiError } from '../../lib/api-client';
 import type { ApiSuccessResponse, ProjectApiRecord } from '../../types/api';
+
+type CalendarEvent = {
+  id: string;
+  title: string;
+  start_time: string;
+  end_time: string;
+  event_type: string;
+  location?: string;
+  all_day?: boolean;
+};
 import {
   deleteProjectMeta,
   deleteGraveyardMetaSync,
@@ -55,6 +65,7 @@ export default function ProjectsPage() {
   const router = useRouter();
   const { session, status } = useSession();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [pendingMap, setPendingMap] = useState<Record<string, boolean>>({});
@@ -75,7 +86,29 @@ export default function ProjectsPage() {
   useEffect(() => {
     if (status !== 'ready' || !session.accessToken) return;
     fetchProjects();
+    fetchCalendarEvents();
   }, [status, session.accessToken]);
+
+  async function fetchCalendarEvents() {
+    try {
+      // Get events for the next 7 days
+      const today = new Date();
+      const nextWeek = new Date(today);
+      nextWeek.setDate(nextWeek.getDate() + 7);
+
+      const startDate = today.toISOString().split('T')[0];
+      const endDate = nextWeek.toISOString().split('T')[0];
+
+      const response = await apiFetch<{ success: boolean; data: { events: CalendarEvent[] } }>(
+        `/api/calendar/events?start_date=${startDate}&end_date=${endDate}&limit=50`
+      );
+      if (response.success && response.data.events) {
+        setCalendarEvents(response.data.events);
+      }
+    } catch {
+      // Silently fail - calendar is optional
+    }
+  }
 
   function markPending(id: string, pending: boolean) {
     setPendingMap((prev) => ({ ...prev, [id]: pending }));
@@ -264,6 +297,57 @@ export default function ProjectsPage() {
           <div className={styles.loadingState}>Syncing projects…</div>
         ) : (
           <>
+            {/* Calendar Events Section */}
+            {calendarEvents.length > 0 && (
+              <section className={styles.section}>
+                <SectionHeader
+                  title="Today's Calendar"
+                  count={calendarEvents.length}
+                  variant="active"
+                />
+                <div className={styles.calendarCards}>
+                  {calendarEvents.map((event) => {
+                    const startTime = new Date(event.start_time);
+                    const endTime = new Date(event.end_time);
+                    const today = new Date();
+                    const isToday = startTime.toDateString() === today.toDateString();
+                    const tomorrow = new Date(today);
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    const isTomorrow = startTime.toDateString() === tomorrow.toDateString();
+
+                    const dateStr = isToday
+                      ? 'Today'
+                      : isTomorrow
+                      ? 'Tomorrow'
+                      : startTime.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+
+                    const timeStr = event.all_day
+                      ? 'All day'
+                      : `${startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+
+                    return (
+                      <div key={event.id} className={styles.calendarCard}>
+                        <div className={styles.calendarHeader}>
+                          <div className={styles.calendarBadge}>📅 Calendar</div>
+                          <span className={`${styles.calendarDate} ${isToday ? styles.calendarDateToday : ''}`}>
+                            {dateStr}
+                          </span>
+                        </div>
+                        <h3 className={styles.calendarTitle}>{event.title}</h3>
+                        <div className={styles.calendarMeta}>
+                          <span className={styles.calendarTime}>🕐 {timeStr}</span>
+                          {event.location && (
+                            <span className={styles.calendarLocation}>📍 {event.location}</span>
+                          )}
+                        </div>
+                        <div className={styles.calendarType}>{event.event_type}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
             <section className={styles.section}>
               <SectionHeader
                 title="Active"

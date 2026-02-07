@@ -1,10 +1,23 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect } from 'react';
 import SettingsPage from '../../components/SettingsPage';
 
 export default function SettingsRoute() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const calendarParam = searchParams.get('calendar');
+    if (calendarParam === 'connected') {
+      alert('Google Calendar connected successfully!');
+      router.replace('/settings');
+    } else if (calendarParam === 'error') {
+      alert('Failed to connect Google Calendar. Please try again.');
+      router.replace('/settings');
+    }
+  }, [searchParams, router]);
 
   function handleRetakeOnboarding(resetData: boolean) {
     if (resetData) {
