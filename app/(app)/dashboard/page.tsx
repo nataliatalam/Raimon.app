@@ -20,7 +20,8 @@ import type {
 import { storeActiveTask } from '../../../lib/activeTask';
 import { useSession } from '../../components/providers/SessionProvider';
 
-type CalendarEvent = {
+// API response type (snake_case from backend)
+type ApiCalendarEvent = {
   id: string;
   title: string;
   start_time: string;
@@ -111,7 +112,7 @@ export default function DashboardPage() {
   const { session, status } = useSession();
   const [stage, setStage] = useState<'checkin' | 'home' | 'tasks'>('checkin');
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<ApiCalendarEvent[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [tasksError, setTasksError] = useState('');
   const [summaryData, setSummaryData] = useState<DaySummaryData | undefined>(undefined);
@@ -150,9 +151,6 @@ export default function DashboardPage() {
     if (stage !== 'tasks' || status !== 'ready' || !session.accessToken) return;
     fetchTasks();
     fetchCalendarEvents();
-    if ((stage === 'home' || stage === 'tasks') && status === 'ready' && session.accessToken) {
-      fetchTasks();
-    }
   }, [stage, status, session.accessToken]);
 
   useEffect(() => {
@@ -191,7 +189,7 @@ export default function DashboardPage() {
 
   async function fetchCalendarEvents() {
     try {
-      const response = await apiFetch<{ success: boolean; data: { events: CalendarEvent[] } }>('/api/calendar/today');
+      const response = await apiFetch<{ success: boolean; data: { events: ApiCalendarEvent[] } }>('/api/calendar/today');
       if (response.success && response.data.events) {
         setCalendarEvents(response.data.events);
       }
@@ -226,7 +224,7 @@ export default function DashboardPage() {
     };
   }
 
-  function mapCalendarEventToTask(event: CalendarEvent): Task {
+  function mapCalendarEventToTask(event: ApiCalendarEvent): Task {
     const startTime = new Date(event.start_time);
     const endTime = new Date(event.end_time);
     const durationMinutes = Math.round((endTime.getTime() - startTime.getTime()) / 60000);
