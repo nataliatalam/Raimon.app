@@ -96,7 +96,7 @@ export default function NextDo({ onStartTask }: Props) {
         const mapped = mapAgentActiveDo(response.data?.active_do ?? null);
         if (!mapped) return;
         setActiveDo(mapped);
-        if (response.data.coach_message) {
+        if (response.data?.coach_message) {
           setCoachMessage(response.data.coach_message);
         }
         setHasRequested(true);
