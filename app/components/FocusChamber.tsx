@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import MicroLabel from './ui/MicroLabel';
 import TheVault from './TheVault';
@@ -8,6 +8,7 @@ import BrainDump from './BrainDump';
 import ChamberGuide from './ChamberGuide';
 import OxygenRoom from './OxygenRoom';
 import styles from './FocusChamber.module.css';
+import type { StoredCoachMessage } from '../../lib/activeTask';
 
 export type FocusTask = {
   title: string;
@@ -18,7 +19,7 @@ export type FocusTask = {
 
 export type FocusResource = {
   id: string;
-  kind: 'doc' | 'sheet' | 'link';
+  kind: 'doc' | 'sheet' | 'link' | 'notes';
   name: string;
   action?: string;
   onClick?: () => void;
@@ -26,7 +27,9 @@ export type FocusResource = {
 
 type Props = {
   task: FocusTask;
+  coach?: StoredCoachMessage | null;
   resources?: FocusResource[];
+  initialNotesOpen?: boolean;
   onSend?: (text: string) => void;
   onStuck?: () => void;
   onBreak?: () => void;
@@ -36,7 +39,9 @@ type Props = {
 
 export default function FocusChamber({
   task,
+  coach,
   resources = [],
+  initialNotesOpen = true,
   onStuck,
   onBreak,
   onResume,
@@ -44,6 +49,32 @@ export default function FocusChamber({
 }: Props) {
   const [isOnBreak, setIsOnBreak] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [coachVisible, setCoachVisible] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(initialNotesOpen);
+
+  useEffect(() => {
+    if (!coach) {
+      setCoachVisible(false);
+      return;
+    }
+    setCoachVisible(false);
+    const timeout = setTimeout(() => setCoachVisible(true), 50);
+    return () => clearTimeout(timeout);
+  }, [coach?.title, coach?.message, coach?.next_step]);
+
+  const hasNotes = Boolean(task.desc?.trim());
+
+  const resourceList = useMemo(() => {
+    if (!hasNotes) return resources;
+    const notesResource: FocusResource = {
+      id: 'notes',
+      kind: 'notes',
+      name: 'Notes & description',
+      action: notesOpen ? 'Hide' : 'View',
+      onClick: () => setNotesOpen((open) => !open),
+    };
+    return [notesResource, ...resources];
+  }, [hasNotes, resources, notesOpen]);
 
   const handleBreakToggle = () => {
     if (isOnBreak) {
@@ -135,13 +166,43 @@ export default function FocusChamber({
               </h1>
             </div>
 
-            <div className="flex-1 max-w-2xl">
-              <div className="mb-2">
-                <MicroLabel text="OBJECTIVE & CONTEXT" />
+            {coach && (
+              <div
+                className={`mt-4 pt-4 border-t border-zinc-200 transition-all duration-500 ease-out ${
+                  coachVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
+                }`}
+                style={{ transitionDelay: coachVisible ? '0.5s' : '0s' }}
+              >
+                <div className="space-y-1.5">
+                  <p className="text-base font-semibold text-zinc-900">{coach.title}</p>
+                  <p className="text-[13px] text-zinc-500 leading-relaxed">{coach.message}</p>
+                  {coach.next_step ? (
+                    <p className="text-xs font-semibold text-[#FF6B00] tracking-wide">
+                      <span className="mr-1">→</span>
+                      {coach.next_step}
+                    </p>
+                  ) : null}
+                </div>
               </div>
-              <p className="text-base lg:text-xl font-normal text-zinc-400 leading-relaxed tracking-tight">
-                {task.desc}
-              </p>
+            )}
+
+            <div className="flex-1 w-full max-w-2xl">
+              <div
+                className="overflow-hidden transition-all duration-[350ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
+                style={{
+                  maxHeight: notesOpen && hasNotes ? '500px' : '0px',
+                  opacity: notesOpen && hasNotes ? 1 : 0,
+                }}
+              >
+                <div className="pt-4 mt-4 border-t border-zinc-200">
+                  <div className="mb-2">
+                    <MicroLabel text="OBJECTIVE & CONTEXT" />
+                  </div>
+                  <p className="text-base lg:text-xl font-normal text-zinc-400 leading-relaxed tracking-tight whitespace-pre-line">
+                    {task.desc}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -151,7 +212,7 @@ export default function FocusChamber({
         {/* Sidebar - The Vault */}
         <div className="col-span-5 flex flex-col overflow-hidden">
           <div className="flex-1 bg-[#0D1117] rounded-[2.5rem] shadow-2xl border border-white/5 flex flex-col overflow-hidden hover:shadow-[0_40px_100px_rgba(0,0,0,0.3)] transition-all duration-700">
-            <TheVault resources={resources} />
+            <TheVault resources={resourceList} />
           </div>
         </div>
       </div>

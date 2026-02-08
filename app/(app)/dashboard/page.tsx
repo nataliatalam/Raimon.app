@@ -160,22 +160,15 @@ function buildConstraintsFromEnergy(energyLevel: number | null): SelectionConstr
 
 function mapAgentActiveDoToTask(
   activeDo?: AgentActiveDoPayload | null,
-  coach?: AgentCoachMessage | null,
 ): Task | null {
   const rawTask = activeDo?.task;
   if (!rawTask?.id) return null;
   const duration = typeof rawTask.estimated_duration === 'number' ? rawTask.estimated_duration : undefined;
 
-  let desc = rawTask.description ?? 'Raimon thinks this is the best next move right now.';
-  if (coach) {
-    const guidance = coach.next_step ? `${coach.message} Next: ${coach.next_step}` : coach.message;
-    desc = `${coach.title}\n${guidance}`.trim();
-  }
-
   return {
     id: rawTask.id,
     title: rawTask.title ?? 'AI-selected task',
-    desc,
+    desc: rawTask.description ?? 'Raimon thinks this is the best next move right now.',
     project: rawTask.project_name ?? 'AI Recommendation',
     duration: duration ? `${duration} min` : undefined,
     durationMinutes: duration,
@@ -363,8 +356,8 @@ export default function DashboardPage() {
   }
 
   const aiTaskEntry = useMemo(
-    () => mapAgentActiveDoToTask(agentActiveDo, agentCoachMessage),
-    [agentActiveDo, agentCoachMessage],
+    () => mapAgentActiveDoToTask(agentActiveDo),
+    [agentActiveDo],
   );
 
   const prioritizedTasks = useMemo(() => {
@@ -414,6 +407,7 @@ export default function DashboardPage() {
         durationMinutes: task.durationMinutes,
         projectId: task.projectId,
         startedAt: new Date().toISOString(),
+        coach: agentCoachMessage ?? null,
       });
       try {
         await apiFetch('/api/agent-mvp/do-action', {
