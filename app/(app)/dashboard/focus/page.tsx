@@ -78,6 +78,14 @@ export default function FocusPage() {
         method: 'POST',
         body: { intervention_type: 'stuck', description: 'User reported being stuck from focus view' },
       });
+      try {
+        await apiFetch('/api/agent-mvp/do-action', {
+          method: 'POST',
+          body: { action: 'stuck', task_id: task.id, time_stuck: task.durationMinutes ?? undefined },
+        });
+      } catch (agentErr) {
+        console.warn('Failed to notify orchestrator about stuck state', agentErr);
+      }
     } catch {
       // ignore - modal still helps user
     } finally {
@@ -102,6 +110,14 @@ export default function FocusPage() {
     if (!task?.id) return;
     try {
       await apiFetch(`/api/tasks/${task.id}/start`, { method: 'POST', body: {} });
+      try {
+        await apiFetch('/api/agent-mvp/do-action', {
+          method: 'POST',
+          body: { action: 'start', task_id: task.id },
+        });
+      } catch (agentErr) {
+        console.warn('Failed to notify orchestrator about resume', agentErr);
+      }
     } catch (err) {
       if (err instanceof ApiError) setError(err.message);
       else setError('Failed to resume task.');
@@ -119,6 +135,14 @@ export default function FocusPage() {
         method: 'POST',
         body: { notes: 'Completed from focus chamber' },
       });
+      try {
+        await apiFetch('/api/agent-mvp/do-action', {
+          method: 'POST',
+          body: { action: 'complete', task_id: task.id },
+        });
+      } catch (agentErr) {
+        console.warn('Failed to notify orchestrator about completion', agentErr);
+      }
       clearActiveTask();
       router.push('/dashboard');
     } catch (err) {

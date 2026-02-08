@@ -37,6 +37,8 @@ from agent_mvp.contracts import (
     UserProfileAnalysis,
     TaskCandidate,
     SelectionConstraints,
+    ActiveDo,
+    CoachOutput,
 )
 from agent_mvp.user_profile_agent import analyze_user_profile
 from agent_mvp.state_adapter_agent import adapt_checkin_to_constraints
@@ -61,6 +63,31 @@ from opik import track
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_datetime(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def _to_task_candidate(task: Dict[str, Any]) -> TaskCandidate:
+    """Coerce raw Supabase task into TaskCandidate model."""
+    due_at = task.get("due_at") or task.get("deadline")
+    candidate = TaskCandidate(
+        id=str(task.get("id")),
+        title=task.get("title") or "Untitled task",
+        priority=task.get("priority", "medium"),
+        status=task.get("status", "todo"),
+        estimated_duration=task.get("estimated_duration") or task.get("estimated_minutes"),
+        due_at=_parse_datetime(due_at),
+        tags=task.get("tags") or [],
+        created_at=_parse_datetime(task.get("created_at")),
+    )
+    return candidate
 
 
 def get_calendar_context(user_id: str) -> Optional[Dict[str, Any]]:
@@ -230,6 +257,125 @@ class RaimonOrchestrator:
             state.error = f"Unknown event type: {type(event)}"
             return "error"
 
+    def _select_and_store_active_do(
+        self,
+        state: GraphState,
+        user_id: str,
+        constraints: Optional[SelectionConstraints],
+        event_context: str,
+        candidate_dicts: Optional[List[Dict[str, Any]]] = None,
+    ) -> tuple[Optional[ActiveDo], Optional[CoachOutput]]:
+        """Run selection pipeline (LLM + deterministic fallback) and persist active_do."""
+        if isinstance(constraints, SelectionConstraints):
+            selection_constraints = constraints
+        elif constraints is None:
+            selection_constraints = SelectionConstraints()
+        else:
+            data = constraints.model_dump() if hasattr(constraints, "model_dump") else constraints
+            selection_constraints = SelectionConstraints(**data)
+
+        if candidate_dicts is None:
+            candidate_dicts = get_task_candidates(user_id, selection_constraints)
+
+        if not candidate_dicts:
+            logger.warning(f"No task candidates available for user {user_id}")
+            return None, None
+
+        task_models: List[TaskCandidate] = []
+        for raw in candidate_dicts:
+            try:
+                task_models.append(_to_task_candidate(raw))
+            except Exception as err:
+                logger.warning(f"Failed to coerce task candidate (non-blocking): {err}")
+
+        if not task_models:
+            logger.warning(f"No valid task candidates after coercion for user {user_id}")
+            return None, None
+
+        state.candidates = task_models
+
+        selector_output = None
+        selector_valid = False
+        try:
+            selector_output, selector_valid = llm_select_task(
+                candidates=task_models,
+                constraints=selection_constraints,
+                recent_actions={"context": event_context},
+            )
+        except Exception as err:
+            logger.warning(f"LLM DoSelector failed, will fallback: {err}")
+
+        if not selector_output:
+            try:
+                deterministic_payload = {
+                    "user_id": user_id,
+                    "candidates": [candidate.model_dump() for candidate in task_models],
+                    "constraints": selection_constraints.model_dump(),
+                    "recent_actions": {"context": event_context},
+                }
+                selector_output = select_optimal_task(deterministic_payload)
+                selector_valid = False
+            except Exception as fallback_err:
+                logger.error(f"Deterministic selector failed: {fallback_err}")
+                return None, None
+
+        selected_task = next((c for c in task_models if c.id == selector_output.task_id), None)
+        if not selected_task:
+            selected_task = task_models[0]
+
+        reason_codes = selector_output.reason_codes or ["constraints_fit"]
+
+        coach_output: Optional[CoachOutput] = None
+        coach_valid = False
+        try:
+            coach_output, coach_valid = llm_generate_coaching_message(
+                task=selected_task,
+                reason_codes=reason_codes,
+                mode=selection_constraints.mode,
+            )
+        except Exception as coach_err:
+            logger.warning(f"Coach agent failed, using fallback: {coach_err}")
+            coach_output = CoachOutput(
+                title="Let's move",
+                message=f"Start with “{selected_task.title}” and build momentum.",
+                next_step="Begin now.",
+            )
+
+        selection_time = datetime.utcnow().isoformat()
+        metadata = {
+            "reason_codes": reason_codes,
+            "alt_task_ids": selector_output.alt_task_ids or [],
+            "selector_valid": selector_valid,
+            "coach_valid": coach_valid,
+            "context": event_context,
+            "selected_at": selection_time,
+        }
+        if coach_output:
+            metadata["coach_message"] = (
+                coach_output.model_dump() if hasattr(coach_output, "model_dump") else coach_output
+            )
+        task_payload = selected_task.model_dump()
+        task_payload["_agent_meta"] = metadata
+
+        selection_reason = ",".join(reason_codes) if reason_codes else event_context
+
+        save_active_do(
+            {
+                "user_id": user_id,
+                "task": task_payload,
+                "selection_reason": selection_reason,
+                "coaching_message": coach_output.message if coach_output else None,
+                "started_at": selection_time,
+            }
+        )
+
+        active_do = ActiveDo(
+            task=selected_task,
+            reason_codes=reason_codes,
+            alt_task_ids=selector_output.alt_task_ids or [],
+        )
+        return active_do, coach_output
+
     def _start(self, state: GraphState) -> GraphState:
         """No-op start node for graph entry."""
         return state
@@ -341,10 +487,24 @@ class RaimonOrchestrator:
             elif not selection.get("task"):
                 logger.warning(f"⚠️ active_do not saved: no selected task for user {user_id}")
 
+            state.selection_constraints = constraints
             state.constraints = constraints
             state.success = True
 
             logger.info(f"✅ Check-in processed for user {user_id}")
+
+            # Immediately run selection so downstream UI can read recommendation
+            context_label = getattr(event, "context", "checkin")
+            active_do, coach_output = self._select_and_store_active_do(
+                state,
+                user_id,
+                constraints,
+                context_label,
+            )
+            if active_do:
+                state.active_do = active_do.model_dump()
+            if coach_output:
+                state.coach_message = coach_output
 
         except Exception as e:
             logger.error(f"❌ Check-in processing failed: {str(e)}", exc_info=True)
@@ -364,6 +524,10 @@ class RaimonOrchestrator:
                 log_agent_event(user_id, "do_next", {"context": getattr(event, "context", None)})
             except Exception as log_err:
                 logger.warning(f"⚠️ log_agent_event failed (non-blocking): {log_err}")
+
+            if getattr(event, "constraints", None):
+                state.selection_constraints = event.constraints
+                state.constraints = event.constraints
 
             # Get user profile (handle both dict and Pydantic returns)
             user_profile = None
@@ -480,136 +644,28 @@ class RaimonOrchestrator:
                 except Exception as e:
                     logger.warning(f"Could not fetch recent check-ins: {str(e)}")
 
-            # Get task candidates
             if state.constraints:
-                try:
-                    candidates = get_task_candidates(user_id, state.constraints)
-                    state.candidates = candidates if candidates else []
-                    
-                    # Select with LLM DoSelector + LLM Coach (with deterministic fallback)
-                    if state.candidates:
-                        try:
-                            llm_candidates = []
-                            for task in state.candidates[:20]:
-                                llm_candidates.append(
-                                    TaskCandidate(
-                                        id=str(task.get("id")),
-                                        title=task.get("title") or "Untitled task",
-                                        priority=task.get("priority", "medium"),
-                                        status=task.get("status", "todo"),
-                                        estimated_duration=task.get("estimated_duration"),
-                                        due_at=task.get("due_at") or task.get("deadline"),
-                                        tags=task.get("tags") or [],
-                                        created_at=task.get("created_at"),
-                                    )
-                                )
-
-                            llm_constraints = (
-                                state.constraints
-                                if isinstance(state.constraints, SelectionConstraints)
-                                else SelectionConstraints(**state.constraints)
-                            )
-
-                            selector_output, selector_valid = llm_select_task(
-                                candidates=llm_candidates,
-                                constraints=llm_constraints,
-                                recent_actions={"context": getattr(event, "context", None)},
-                            )
-
-                            best_task = next(
-                                (
-                                    t
-                                    for t in state.candidates
-                                    if str(t.get("id")) == selector_output.task_id
-                                ),
-                                None,
-                            )
-                            if not best_task and state.candidates:
-                                best_task = state.candidates[0]
-
-                            if best_task:
-                                reason_codes = selector_output.reason_codes or ["fallback_best_overall"]
-                                selected_candidate = next(
-                                    (
-                                        c
-                                        for c in llm_candidates
-                                        if c.id == str(best_task.get("id"))
-                                    ),
-                                    llm_candidates[0],
-                                )
-                                coach_output, coach_valid = llm_generate_coaching_message(
-                                    task=selected_candidate,
-                                    reason_codes=reason_codes,
-                                    mode=llm_constraints.mode,
-                                )
-
-                                active_do_payload = {
-                                    "user_id": user_id,
-                                    "task": best_task.get("id"),
-                                    "selection_reason": ",".join(reason_codes),
-                                    "coaching_message": coach_output.message,
-                                    "started_at": datetime.utcnow().isoformat(),
-                                }
-                                self.storage.save_active_do(active_do_payload) if self.storage else None
-
-                                state.active_do = {
-                                    "task": best_task.get("id"),
-                                    "selection_reason": ",".join(reason_codes),
-                                    "reason_codes": reason_codes,
-                                    "alt_task_ids": selector_output.alt_task_ids,
-                                    "selector_valid": selector_valid,
-                                    "coach_valid": coach_valid,
-                                }
-                                state.coach_message = coach_output
-
-                                logger.info(
-                                    f"Selected task {best_task.get('id')} for user {user_id} "
-                                    f"(selector_valid={selector_valid}, coach_valid={coach_valid})"
-                                )
-                        except Exception as select_err:
-                            logger.warning(f"LLM selection failed, using deterministic fallback: {select_err}")
-                            try:
-                                scored = []
-                                for task in state.candidates[:20]:
-                                    priority_score = {"high": 3, "medium": 2, "low": 1}.get(task.get("priority", "medium"), 2)
-                                    duration_raw = task.get("estimated_duration", 60)
-                                    try:
-                                        duration = int(duration_raw) if duration_raw is not None else 60
-                                    except (TypeError, ValueError):
-                                        duration = 60
-                                    time_score = 3 if duration < 30 else (2 if duration < 120 else 1)
-                                    score = priority_score * 0.6 + time_score * 0.4
-                                    scored.append({"task": task, "score": score})
-
-                                scored.sort(key=lambda x: x["score"], reverse=True)
-                                if scored:
-                                    best_task = scored[0]["task"]
-                                    active_do_payload = {
-                                        "user_id": user_id,
-                                        "task": best_task.get("id"),
-                                        "selection_reason": "fallback_optimal_match",
-                                        "coaching_message": f"Ready to start {best_task.get('title', 'your task')}?",
-                                        "started_at": datetime.utcnow().isoformat(),
-                                    }
-                                    self.storage.save_active_do(active_do_payload) if self.storage else None
-                                    state.active_do = {
-                                        "task": best_task.get("id"),
-                                        "selection_reason": "fallback_optimal_match",
-                                        "reason_codes": ["fallback_best_overall"],
-                                        "alt_task_ids": [],
-                                        "selector_valid": False,
-                                        "coach_valid": False,
-                                    }
-                                    logger.info(f"Selected task {best_task.get('id')} for user {user_id} (fallback)")
-                            except Exception as fallback_err:
-                                logger.warning(f"Active_do fallback selection failed (non-blocking): {fallback_err}")
-                    else:
-                        logger.warning(
-                            f"No task candidates available for user {user_id}. "
-                            "Check constraints and task pool."
-                        )
-                except Exception as e:
-                    logger.warning(f"Could not fetch task candidates: {str(e)}")
+                context_label = getattr(event, "context", "do_next")
+                candidates = get_task_candidates(user_id, state.constraints)
+                active_do, coach_output = self._select_and_store_active_do(
+                    state,
+                    user_id,
+                    state.constraints,
+                    context_label,
+                    candidate_dicts=candidates,
+                )
+                if active_do:
+                    state.active_do = active_do.model_dump()
+                else:
+                    state.success = False
+                    state.error = "No task candidates available"
+                    return state
+                if coach_output:
+                    state.coach_message = coach_output
+            else:
+                state.success = False
+                state.error = "No selection constraints available"
+                return state
 
             state.success = True
             logger.info(f"✅ Do next processed for user {user_id}")

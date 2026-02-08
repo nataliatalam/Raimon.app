@@ -20,6 +20,41 @@ import type {
 import { storeActiveTask } from '../../../lib/activeTask';
 import { useSession } from '../../components/providers/SessionProvider';
 
+type AgentCoachMessage = {
+  title: string;
+  message: string;
+  next_step: string;
+};
+
+type AgentActiveDoPayload = {
+  task?: {
+    id?: string;
+    title?: string;
+    description?: string | null;
+    project_id?: string | null;
+    project_name?: string | null;
+    estimated_duration?: number | null;
+  };
+  reason_codes?: string[];
+  alt_task_ids?: string[];
+  selected_at?: string;
+};
+
+type AgentNextDoResponse = {
+  success: boolean;
+  data?: {
+    active_do?: AgentActiveDoPayload;
+    coach_message?: AgentCoachMessage;
+  };
+  error?: string;
+};
+
+type SelectionConstraintPayload = {
+  max_minutes: number;
+  mode: 'quick' | 'balanced' | 'focus';
+  current_energy: number;
+};
+
 // API response type (snake_case from backend)
 type ApiCalendarEvent = {
   id: string;
@@ -30,6 +65,7 @@ type ApiCalendarEvent = {
   location?: string;
 };
 const EVENTS_STORAGE_KEY = 'raimon_calendar_events';
+const DEFAULT_MAX_MINUTES = 120;
 
 function loadStoredEvents(): CalendarEvent[] {
   if (typeof window === 'undefined') return [];
@@ -107,6 +143,46 @@ function buildDeadlineEvents(records: ProjectApiRecord[]): CalendarEvent[] {
   return results;
 }
 
+function deriveModeFromEnergy(energyLevel: number): SelectionConstraintPayload['mode'] {
+  if (energyLevel <= 3) return 'quick';
+  if (energyLevel >= 8) return 'focus';
+  return 'balanced';
+}
+
+function buildConstraintsFromEnergy(energyLevel: number | null): SelectionConstraintPayload {
+  const normalized = typeof energyLevel === 'number' && energyLevel >= 1 ? energyLevel : 5;
+  return {
+    max_minutes: DEFAULT_MAX_MINUTES,
+    current_energy: normalized,
+    mode: deriveModeFromEnergy(normalized),
+  };
+}
+
+function mapAgentActiveDoToTask(
+  activeDo?: AgentActiveDoPayload | null,
+  coach?: AgentCoachMessage | null,
+): Task | null {
+  const rawTask = activeDo?.task;
+  if (!rawTask?.id) return null;
+  const duration = typeof rawTask.estimated_duration === 'number' ? rawTask.estimated_duration : undefined;
+
+  let desc = rawTask.description ?? 'Raimon thinks this is the best next move right now.';
+  if (coach) {
+    const guidance = coach.next_step ? `${coach.message} Next: ${coach.next_step}` : coach.message;
+    desc = `${coach.title}\n${guidance}`.trim();
+  }
+
+  return {
+    id: rawTask.id,
+    title: rawTask.title ?? 'AI-selected task',
+    desc,
+    project: rawTask.project_name ?? 'AI Recommendation',
+    duration: duration ? `${duration} min` : undefined,
+    durationMinutes: duration,
+    projectId: rawTask.project_id ?? undefined,
+  };
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const { session, status } = useSession();
@@ -117,6 +193,10 @@ export default function DashboardPage() {
   const [tasksError, setTasksError] = useState('');
   const [summaryData, setSummaryData] = useState<DaySummaryData | undefined>(undefined);
   const [streakCount, setStreakCount] = useState(0);
+  const [todayEnergy, setTodayEnergy] = useState<number | null>(null);
+  const [agentActiveDo, setAgentActiveDo] = useState<AgentActiveDoPayload | null>(null);
+  const [agentCoachMessage, setAgentCoachMessage] = useState<AgentCoachMessage | null>(null);
+  const [agentError, setAgentError] = useState('');
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [nextEvent, setNextEvent] = useState<CalendarEvent | null>(null);
 
@@ -142,6 +222,7 @@ export default function DashboardPage() {
     try {
       const response = await apiFetch<ApiSuccessResponse<DashboardSummaryPayload>>('/api/dashboard/summary');
       setStreakCount(response.data.streaks?.daily_check_in ?? 0);
+      setTodayEnergy(response.data.today.energy_level ?? null);
     } catch {
       // Non-blocking
     }
@@ -151,6 +232,7 @@ export default function DashboardPage() {
     if (stage !== 'tasks' || status !== 'ready' || !session.accessToken) return;
     fetchTasks();
     fetchCalendarEvents();
+    fetchRecommendation();
   }, [stage, status, session.accessToken]);
 
   useEffect(() => {
@@ -198,6 +280,46 @@ export default function DashboardPage() {
     }
   }
 
+  async function fetchLatestEnergy(): Promise<number | null> {
+    try {
+      const response = await apiFetch<ApiSuccessResponse<DashboardSummaryPayload>>('/api/dashboard/summary');
+      const energy = response.data.today.energy_level ?? null;
+      setTodayEnergy(energy);
+      return energy;
+    } catch {
+      return todayEnergy;
+    }
+  }
+
+  async function fetchRecommendation(forceEnergyRefresh = false) {
+    setAgentError('');
+    try {
+      let energy = todayEnergy;
+      if (forceEnergyRefresh || energy == null) {
+        energy = await fetchLatestEnergy();
+      }
+      const constraints = buildConstraintsFromEnergy(energy);
+      const response = await apiFetch<AgentNextDoResponse>('/api/agent-mvp/next-do', {
+        method: 'POST',
+        body: { constraints },
+      });
+
+      if (response.success && response.data) {
+        setAgentActiveDo(response.data.active_do ?? null);
+        setAgentCoachMessage(response.data.coach_message ?? null);
+      } else {
+        setAgentActiveDo(null);
+        setAgentCoachMessage(null);
+        setAgentError(response.error || 'Failed to get AI recommendation.');
+      }
+    } catch (err) {
+      setAgentActiveDo(null);
+      setAgentCoachMessage(null);
+      if (err instanceof ApiError) setAgentError(err.message);
+      else setAgentError('Failed to get AI recommendation.');
+    }
+  }
+
   async function fetchTasks() {
     setTasksLoading(true);
     setTasksError('');
@@ -240,6 +362,16 @@ export default function DashboardPage() {
     };
   }
 
+  const aiTaskEntry = useMemo(
+    () => mapAgentActiveDoToTask(agentActiveDo, agentCoachMessage),
+    [agentActiveDo, agentCoachMessage],
+  );
+
+  const prioritizedTasks = useMemo(() => {
+    if (!aiTaskEntry) return tasks;
+    return [aiTaskEntry, ...tasks.filter((task) => task.id !== aiTaskEntry.id)];
+  }, [tasks, aiTaskEntry]);
+
   // Combine tasks with calendar events
   const allTasks = useMemo(() => {
     const calendarTasks = calendarEvents.map(mapCalendarEventToTask);
@@ -249,8 +381,8 @@ export default function DashboardPage() {
       const timeB = b.desc.match(/\d{1,2}:\d{2}/)?.[0] || '';
       return timeA.localeCompare(timeB);
     });
-    return [...calendarTasks, ...tasks];
-  }, [tasks, calendarEvents]);
+    return [...calendarTasks, ...prioritizedTasks];
+  }, [prioritizedTasks, calendarEvents]);
 
   function handleCheckInComplete() {
     if (typeof window !== 'undefined' && session.user?.id) {
@@ -283,6 +415,14 @@ export default function DashboardPage() {
         projectId: task.projectId,
         startedAt: new Date().toISOString(),
       });
+      try {
+        await apiFetch('/api/agent-mvp/do-action', {
+          method: 'POST',
+          body: { action: 'start', task_id: task.id },
+        });
+      } catch (agentErr) {
+        console.warn('Failed to notify orchestrator about task start', agentErr);
+      }
       router.push('/dashboard/focus');
     } catch (err) {
       if (err instanceof ApiError) setTasksError(err.message);
@@ -360,7 +500,7 @@ export default function DashboardPage() {
     <TasksPage
       tasks={allTasks}
       loading={tasksLoading}
-      errorMessage={tasksError}
+      errorMessage={tasksError || agentError}
       summaryData={summaryData}
       userName={session.user?.name ?? undefined}
       onDo={handleStartTask}

@@ -25,17 +25,17 @@ from agent_mvp.contracts import (
     DayEndEvent,
     ProjectInsightRequest,
 )
-from agent_mvp.graph import run_agent_mvp
 from agent_mvp.orchestrator import process_agent_event
 from agent_mvp.events import log_agent_event
 from agent_mvp.project_insight_agent import generate_project_insights
+from agent_mvp.storage import get_active_do
 from core.security import get_current_user
 from opik import track
 import logging
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/agent-mvp", tags=["Agent MVP"])
+router = APIRouter(prefix="/api/agent-mvp", tags=["Agent MVP"])
 
 
 @router.post("/smoke")
@@ -88,25 +88,20 @@ async def next_do(
     logger.info(f"📨 /next-do request from user {user_id}")
 
     try:
-        # Log DO_NEXT event through orchestrator for tracking
+        event = DoNextEvent(
+            user_id=user_id,
+            timestamp=datetime.utcnow().isoformat(),
+            context="next_do_endpoint",
+            constraints=constraints,
+        )
         try:
-            do_next_event = DoNextEvent(
-                user_id=user_id,
-                timestamp=datetime.utcnow().isoformat(),
-                context="task_selection",
-            )
-            log_agent_event(user_id, "DO_NEXT", {"context": "task_selection"})
-            logger.info(f"🎯 DO_NEXT event logged for user {user_id}")
+            log_agent_event(user_id, "DO_NEXT", {"context": event.context})
         except Exception as event_err:
             logger.warning(f"DO_NEXT event logging failed (non-blocking): {event_err}")
 
-        # Run orchestrator
-        result = await run_agent_mvp(
-            user_id=user_id,
-            constraints=constraints,
-        )
+        result = process_agent_event(event)
 
-        if not result["success"]:
+        if not result.get("success"):
             logger.error(f"❌ Agent MVP failed: {result.get('error')}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -114,10 +109,7 @@ async def next_do(
             )
 
         logger.info(f"✅ /next-do successful for user {user_id}")
-        return AgentMVPResponse(
-            success=True,
-            data=result["data"],
-        )
+        return result
 
     except HTTPException:
         raise
@@ -127,6 +119,38 @@ async def next_do(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error",
         )
+
+
+@router.get("/active-do")
+@track(name="agent_mvp_active_do")
+async def get_active_do_endpoint(
+    current_user: dict = Depends(get_current_user),
+) -> AgentMVPResponse:
+    """Return the most recent active_do stored for the user."""
+    user_id = current_user["id"]
+    record = get_active_do(user_id)
+    if not record:
+        return AgentMVPResponse(success=True, data={})
+
+    task_payload = record.get("task") or {}
+    metadata = task_payload.get("_agent_meta") or {}
+
+    active_do = {
+        "task": task_payload,
+        "reason_codes": metadata.get("reason_codes") or [],
+        "alt_task_ids": metadata.get("alt_task_ids") or [],
+        "selected_at": metadata.get("selected_at"),
+    }
+
+    coach_message = metadata.get("coach_message")
+
+    return AgentMVPResponse(
+        success=True,
+        data={
+            "active_do": active_do,
+            "coach_message": coach_message,
+        },
+    )
 
 
 @router.post("/app-open", response_model=AgentMVPResponse)

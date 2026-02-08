@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Sparkles, Play, RefreshCw, ChevronRight } from 'lucide-react';
 import { apiFetch, ApiError } from '../../lib/api-client';
 import styles from './NextDo.module.css';
@@ -19,10 +19,20 @@ interface CoachMessage {
   next_step: string;
 }
 
+interface AgentActiveDoPayload {
+  task?: {
+    id: string;
+    title: string;
+  };
+  reason_codes?: string[];
+  alt_task_ids?: string[];
+  selected_at?: string;
+}
+
 interface NextDoResponse {
   success: boolean;
   data: {
-    active_do: ActiveDo;
+    active_do: AgentActiveDoPayload;
     coach_message: CoachMessage;
   };
   error?: string;
@@ -30,6 +40,22 @@ interface NextDoResponse {
 
 interface Props {
   onStartTask?: (taskId: string, taskTitle: string) => void;
+}
+
+interface ActiveDoApiResponse {
+  success: boolean;
+  data?: {
+    active_do?: {
+      task?: {
+        id: string;
+        title: string;
+      };
+      reason_codes?: string[];
+      alt_task_ids?: string[];
+      selected_at?: string;
+    };
+    coach_message?: CoachMessage;
+  } | null;
 }
 
 const REASON_LABELS: Record<string, string> = {
@@ -50,6 +76,41 @@ export default function NextDo({ onStartTask }: Props) {
   const [coachMessage, setCoachMessage] = useState<CoachMessage | null>(null);
   const [hasRequested, setHasRequested] = useState(false);
 
+  function mapAgentActiveDo(payload?: AgentActiveDoPayload | null): ActiveDo | null {
+    if (!payload?.task?.id) return null;
+    return {
+      task_id: payload.task.id,
+      task_title: payload.task.title,
+      reason_codes: payload.reason_codes ?? [],
+      alt_task_ids: payload.alt_task_ids ?? [],
+      selected_at: payload.selected_at ?? new Date().toISOString(),
+    };
+  }
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadExistingRecommendation() {
+      try {
+        const response = await apiFetch<ActiveDoApiResponse>('/api/agent-mvp/active-do');
+        if (!mounted || !response.success) return;
+        const mapped = mapAgentActiveDo(response.data?.active_do ?? null);
+        if (!mapped) return;
+        setActiveDo(mapped);
+        if (response.data.coach_message) {
+          setCoachMessage(response.data.coach_message);
+        }
+        setHasRequested(true);
+      } catch {
+        // Ignore bootstrap failures; user can request manually
+      }
+    }
+
+    loadExistingRecommendation();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   async function fetchNextDo() {
     setLoading(true);
     setError('');
@@ -60,7 +121,12 @@ export default function NextDo({ onStartTask }: Props) {
       });
 
       if (response.success && response.data) {
-        setActiveDo(response.data.active_do);
+        const mapped = mapAgentActiveDo(response.data.active_do);
+        if (mapped) {
+          setActiveDo(mapped);
+        } else {
+          setActiveDo(null);
+        }
         setCoachMessage(response.data.coach_message);
       } else {
         setError(response.error || 'Failed to get recommendation');

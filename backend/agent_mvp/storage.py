@@ -64,22 +64,23 @@ def _json_safe(value: Any) -> Any:
 
 @track(name="storage_save_active_do")
 def save_active_do(active_do: Dict[str, Any]) -> None:
-    """Save active do state."""
-    # Don't save if no task selected
+    """Save active do state (task payload stored as JSONB)."""
     if not active_do.get("task"):
         logger.warning(f"⚠️ active_do not saved: no selected task for user {active_do.get('user_id')}")
         return
-    
+
     try:
         supabase = _get_agent_supabase()
         started_at = active_do.get("started_at")
-        if hasattr(started_at, 'isoformat'):
+        if hasattr(started_at, "isoformat"):
             started_at = started_at.isoformat()
+
+        task_payload = _json_safe(active_do.get("task"))
 
         supabase.table("active_do").upsert(
             {
                 "user_id": active_do["user_id"],
-                "task": active_do.get("task"),
+                "task": task_payload,
                 "selection_reason": active_do.get("selection_reason"),
                 "coaching_message": active_do.get("coaching_message"),
                 "started_at": started_at,
@@ -89,7 +90,6 @@ def save_active_do(active_do: Dict[str, Any]) -> None:
         ).execute()
         logger.info(f"💾 Saved active do for user {active_do['user_id']}")
     except Exception as e:
-        # Non-blocking - log and continue
         logger.warning(f"⚠️ Failed to save active do (non-blocking): {str(e)}")
 
 

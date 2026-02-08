@@ -444,6 +444,7 @@ class DoNextEvent(BaseModel):
     user_id: str
     timestamp: str
     context: str = Field(default="task_selection", description="Context for task selection")
+    constraints: Optional[SelectionConstraints] = None
 
 
 class DoActionEvent(BaseModel):
