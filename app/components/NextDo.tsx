@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Sparkles, Play, RefreshCw, ChevronRight } from 'lucide-react';
 import { apiFetch, ApiError } from '../../lib/api-client';
 import styles from './NextDo.module.css';
@@ -74,7 +74,13 @@ export default function NextDo({ onStartTask }: Props) {
   const [error, setError] = useState('');
   const [activeDo, setActiveDo] = useState<ActiveDo | null>(null);
   const [coachMessage, setCoachMessage] = useState<CoachMessage | null>(null);
-  const [hasRequested, setHasRequested] = useState(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   function mapAgentActiveDo(payload?: AgentActiveDoPayload | null): ActiveDo | null {
     if (!payload?.task?.id) return null;
@@ -88,31 +94,50 @@ export default function NextDo({ onStartTask }: Props) {
   }
 
   useEffect(() => {
-    let mounted = true;
-    async function loadExistingRecommendation() {
+    let cancelled = false;
+
+    async function bootstrap() {
+      setLoading(true);
       try {
         const response = await apiFetch<ActiveDoApiResponse>('/api/agent-mvp/active-do');
-        if (!mounted || !response.success) return;
-        const mapped = mapAgentActiveDo(response.data?.active_do ?? null);
-        if (!mapped) return;
-        setActiveDo(mapped);
-        if (response.data?.coach_message) {
-          setCoachMessage(response.data.coach_message);
+        if (!cancelled && response.success) {
+          const mapped = mapAgentActiveDo(response.data?.active_do ?? null);
+          if (mapped) {
+            setActiveDo(mapped);
+            if (response.data?.coach_message) {
+              setCoachMessage(response.data.coach_message);
+            }
+            return;
+          }
         }
-        setHasRequested(true);
       } catch {
-        // Ignore bootstrap failures; user can request manually
+        // Ignore bootstrap failures; fall back to requesting a fresh recommendation
+      }
+
+      if (!cancelled) {
+        await fetchNextDo({ preserveExistingLoading: true });
       }
     }
 
-    loadExistingRecommendation();
+    bootstrap()
+      .catch(() => {
+        // Surface handled inside fetchNextDo / error state
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
     return () => {
-      mounted = false;
+      cancelled = true;
     };
   }, []);
 
-  async function fetchNextDo() {
-    setLoading(true);
+  async function fetchNextDo(options: { preserveExistingLoading?: boolean } = {}) {
+    if (!options.preserveExistingLoading) {
+      setLoading(true);
+    }
     setError('');
     try {
       const response = await apiFetch<NextDoResponse>('/api/agent-mvp/next-do', {
@@ -120,26 +145,25 @@ export default function NextDo({ onStartTask }: Props) {
         body: {},
       });
 
+      if (!mountedRef.current) return;
+
       if (response.success && response.data) {
         const mapped = mapAgentActiveDo(response.data.active_do);
-        if (mapped) {
-          setActiveDo(mapped);
-        } else {
-          setActiveDo(null);
-        }
+        setActiveDo(mapped);
         setCoachMessage(response.data.coach_message);
       } else {
         setError(response.error || 'Failed to get recommendation');
       }
     } catch (err) {
       if (err instanceof ApiError) {
-        setError(err.message);
+        if (mountedRef.current) setError(err.message);
       } else {
-        setError('Failed to get AI recommendation');
+        if (mountedRef.current) setError('Failed to get AI recommendation');
       }
     } finally {
-      setLoading(false);
-      setHasRequested(true);
+      if (!options.preserveExistingLoading) {
+        setLoading(false);
+      }
     }
   }
 
@@ -153,40 +177,6 @@ export default function NextDo({ onStartTask }: Props) {
     setActiveDo(null);
     setCoachMessage(null);
     fetchNextDo();
-  }
-
-  // Initial state - show prompt to get recommendation
-  if (!hasRequested && !activeDo) {
-    return (
-      <div className={styles.container}>
-        <div className={styles.promptCard}>
-          <div className={styles.iconWrapper}>
-            <Sparkles size={24} />
-          </div>
-          <h3 className={styles.promptTitle}>Not sure what to work on?</h3>
-          <p className={styles.promptDesc}>
-            Let AI analyze your tasks and energy level to recommend the best thing to do right now.
-          </p>
-          <button
-            className={styles.primaryBtn}
-            onClick={fetchNextDo}
-            disabled={loading}
-          >
-            {loading ? (
-              <>
-                <RefreshCw size={18} className={styles.spin} />
-                Thinking...
-              </>
-            ) : (
-              <>
-                <Sparkles size={18} />
-                Get AI Recommendation
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-    );
   }
 
   // Loading state

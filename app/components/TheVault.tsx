@@ -17,7 +17,10 @@ const TheVault: React.FC<TheVaultProps> = ({ resources }) => {
         return { icon: <FileText size={12} />, accent: 'text-indigo-400', bg: 'bg-indigo-400/10' };
       case 'sheet':
         return { icon: <StickyNote size={12} />, accent: 'text-[#FF6B00]', bg: 'bg-[#FF6B00]/10' };
+      case 'notes':
+        return { icon: <StickyNote size={12} />, accent: 'text-[#FF6B00]', bg: 'bg-[#FF6B00]/15' };
     }
+    return { icon: <Link2 size={12} />, accent: 'text-white', bg: 'bg-white/10' };
   };
 
   return (

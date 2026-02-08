@@ -1,5 +1,11 @@
 'use client';
 
+export type StoredCoachMessage = {
+  title: string;
+  message: string;
+  next_step: string;
+};
+
 export type StoredFocusTask = {
   id: string;
   title: string;
@@ -9,6 +15,7 @@ export type StoredFocusTask = {
   durationMinutes?: number;
   duration?: string;
   startedAt?: string;
+  coach?: StoredCoachMessage | null;
 };
 
 const STORAGE_KEY = 'raimon_active_task';
@@ -37,4 +44,3 @@ export function clearActiveTask() {
   if (!isBrowser()) return;
   window.sessionStorage.removeItem(STORAGE_KEY);
 }
-

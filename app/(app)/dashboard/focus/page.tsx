@@ -5,7 +5,13 @@ import { useRouter } from 'next/navigation';
 import FocusChamber from '../../../components/FocusChamber';
 import ImStuck from '../../../components/ImStuck';
 import { apiFetch, ApiError } from '../../../../lib/api-client';
-import { clearActiveTask, loadActiveTask, storeActiveTask, type StoredFocusTask } from '../../../../lib/activeTask';
+import {
+  clearActiveTask,
+  loadActiveTask,
+  storeActiveTask,
+  type StoredCoachMessage,
+  type StoredFocusTask,
+} from '../../../../lib/activeTask';
 import type { ApiSuccessResponse } from '../../../../types/api';
 
 type CurrentTaskPayload = {
@@ -57,6 +63,7 @@ export default function FocusPage() {
             ? `${response.data.current_task.estimated_duration} min`
             : undefined,
           startedAt: response.data.session?.start_time,
+          coach: null,
         };
         storeActiveTask(mapped);
         setTask(mapped);
@@ -161,6 +168,7 @@ export default function FocusPage() {
       duration: task.duration ?? (task.durationMinutes ? `${task.durationMinutes} min` : undefined),
     };
   }, [task]);
+  const focusCoach: StoredCoachMessage | null = task?.coach ?? null;
 
   if (loading) {
     return <div style={{ padding: 40, textAlign: 'center' }}>Loading focus session…</div>;
@@ -194,6 +202,7 @@ export default function FocusPage() {
       )}
       <FocusChamber
         task={focusTask}
+        coach={focusCoach ?? undefined}
         onStuck={handleStuck}
         onBreak={handleBreak}
         onResume={handleResume}
