@@ -20,12 +20,14 @@ from core.security import (
     blacklist_token,
 )
 from core.rate_limit import check_rate_limit
+from core.config import get_settings
 from supabase_auth.errors import AuthApiError
 import logging
 import jwt
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
+settings = get_settings()
 
 
 @router.post("/signup", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
@@ -251,8 +253,8 @@ async def forgot_password(request_data: ForgotPasswordRequest, request: Request)
     supabase_admin = get_supabase_admin()
 
     try:
-        # Get the frontend URL for redirect
-        frontend_url = request.headers.get("origin", "http://localhost:3000")
+        # Get the frontend URL for redirect (use request origin or fallback to settings)
+        frontend_url = request.headers.get("origin") or settings.frontend_url
         redirect_url = f"{frontend_url}/reset-password"
 
         # Send password reset email via Supabase

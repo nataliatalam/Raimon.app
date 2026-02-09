@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     app_env: str = "production"
     debug: bool = False
     allowed_origins: str = "http://localhost:3000"
+    frontend_url: str = "http://localhost:3000"  # Frontend URL for redirects and links
 
     # Rate limiting
     rate_limit_login: str = "5/minute"

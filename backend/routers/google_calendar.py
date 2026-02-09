@@ -163,6 +163,7 @@ def categorize_event(event: dict) -> str:
 
 @router.get("/auth/url")
 async def get_auth_url(
+    request: Request,
     current_user: dict = Depends(get_current_user),
 ):
     """Get the Google OAuth authorization URL."""
@@ -179,8 +180,14 @@ async def get_auth_url(
         logger.info(f"Creating OAuth flow with redirect_uri: {redirect_uri}")
         flow = get_oauth_flow()
 
-        # Include user_id in state for callback
-        state = json.dumps({"user_id": current_user["id"]})
+        # Get frontend URL from request origin or settings
+        frontend_url = request.headers.get("origin") or settings.frontend_url
+
+        # Include user_id and frontend_url in state for callback
+        state = json.dumps({
+            "user_id": current_user["id"],
+            "frontend_url": frontend_url
+        })
 
         authorization_url, _ = flow.authorization_url(
             access_type='offline',
@@ -232,6 +239,9 @@ async def oauth_callback(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid state parameter",
             )
+
+        # Extract frontend_url from state
+        frontend_url = state_data.get("frontend_url", settings.frontend_url)
 
         logger.info("Creating OAuth flow for token exchange...")
         flow = get_oauth_flow(state=state)
@@ -293,7 +303,6 @@ async def oauth_callback(
         logger.info(f"Google Calendar connected for user {user_id}")
 
         # Redirect to frontend success page
-        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
         return RedirectResponse(url=f"{frontend_url}/settings?calendar=connected")
 
     except json.JSONDecodeError as e:
@@ -305,7 +314,12 @@ async def oauth_callback(
     except Exception as e:
         logger.error(f"OAuth callback failed: {e}", exc_info=True)
         print(f"OAUTH ERROR: {type(e).__name__}: {e}")  # Also print to console
-        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+        # Try to get frontend_url from state, fallback to settings
+        try:
+            state_data = json.loads(state) if state else {}
+            frontend_url = state_data.get("frontend_url", settings.frontend_url)
+        except:
+            frontend_url = settings.frontend_url
         return RedirectResponse(url=f"{frontend_url}/settings?calendar=error")
 
 
