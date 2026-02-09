@@ -93,6 +93,7 @@ async def login(request_data: LoginRequest, request: Request):
     check_rate_limit(request, max_requests=5, window_seconds=60)
 
     supabase = get_supabase()
+    supabase_admin = get_supabase_admin()
 
     try:
         # Sign in with Supabase Auth
@@ -108,13 +109,13 @@ async def login(request_data: LoginRequest, request: Request):
 
         user_id = auth_response.user.id
 
-        # Get user profile from database
+        # Get user profile from database using admin client to bypass RLS
         user_profile = (
-            supabase.table("users").select("*").eq("id", user_id).execute()
+            supabase_admin.table("users").select("*").eq("id", user_id).execute()
         )
 
-        # Update last login time
-        supabase.table("users").update(
+        # Update last login time using admin client to bypass RLS
+        supabase_admin.table("users").update(
             {"last_login_at": datetime.now(timezone.utc).isoformat()}
         ).eq("id", user_id).execute()
 
