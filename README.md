@@ -1,48 +1,96 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Raimon: The first productivity app designed for finishing, not organizing.
 
-## Getting Started
+The to do list is a wall. Raimon is the door.
 
-First, run the development server:
+Most tools fail at the "okay... what now?" moment. They give you 50 tasks and leave you to drown in decision paralysis. Raimon replaces the list entirely, using AI Agents to bridge the gap between your massive backlog and your actual capacity.
+
+**One Task, Zero Noise:** No dashboards, no guilt. Just the single most important thing to do right now.
+
+**Context Ready Execution:** It doesn't just tell you what to do, it surfaces the notes, docs, and resources you need to finish it.
+
+**Adaptive to You:** Every day starts with a 30 second check in. Raimon recalibrates your day based on your energy, mood, and focus, not just your calendar.
+
+**Built for Momentum:** When you're stuck, Raimon doesn't push. It guides you through a reset and generates a micro step to get you back in flow.
+
+Stop managing your work. Start finishing it.
+
+## Screenshots
+
+![Check in](docs/checkin.png)
+
+![Check in](docs/chekin2.png)
+
+![Check in](docs/checkin3.png)
+
+![Dashboard](docs/dashboard2.png)
+
+![Dashboard Flow](docs/dashboard1.png)
+
+![Dashboard](docs/dashboard3.png)
+
+![Dashboard](docs/dashboard4.png)
+
+![Stuck](docs/stuck.png)
+
+![Break](docs/break.png)
+
+![Task](docs/task2.png)
+
+![Task](docs/task3.png)
+
+## Run Locally
+
+### Frontend
 
 ```bash
+# Install dependencies
+npm install
+
+# Set environment variables
+cp .env.example .env.local
+# Add your NEXT_PUBLIC_API_BASE_URL and Supabase keys
+
+# Run development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-
-## Connecting to the FastAPI backend
-
-The frontend expects the FastAPI server from `/backend` to be running (default `http://localhost:8000`). Set the API base URL via an environment variable before starting Next.js (the Next.js rewrite proxy automatically falls back to the same value; set `RAIMON_BACKEND_URL` only if you need a different rewrite destination):
+### Backend
 
 ```bash
-export NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
-# or add NEXT_PUBLIC_API_BASE_URL to .env.local
-npm run dev
+cd backend
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Set environment variables
+cp .env.example .env
+# Add your API keys and Supabase credentials
+
+# Run server
+uvicorn main:app --reload
 ```
 
-Authentication requests, dashboard data, projects, and task actions will all be proxied to that backend URL.
+Backend runs at [http://localhost:8000](http://localhost:8000).
+
+## Tech Stack
+
+**Frontend**
+- Next.js
+- React
+- TypeScript
+- Tailwind CSS
+- Supabase
+
+**Backend**
+- FastAPI
+- Python
+- LangGraph
+- Google Generative AI
+- Opik
+- Supabase
