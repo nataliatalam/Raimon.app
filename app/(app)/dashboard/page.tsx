@@ -303,13 +303,24 @@ export default function DashboardPage() {
       } else {
         setAgentActiveDo(null);
         setAgentCoachMessage(null);
-        setAgentError(response.error || 'Failed to get AI recommendation.');
+        // Don't show error if it's just "no tasks available"
+        const errorMsg = response.error || 'Failed to get AI recommendation.';
+        if (!errorMsg.toLowerCase().includes('no task') && !errorMsg.toLowerCase().includes('no active')) {
+          setAgentError(errorMsg);
+        }
       }
     } catch (err) {
       setAgentActiveDo(null);
       setAgentCoachMessage(null);
-      if (err instanceof ApiError) setAgentError(err.message);
-      else setAgentError('Failed to get AI recommendation.');
+      // Only show error for actual failures, not "no tasks" situations
+      if (err instanceof ApiError) {
+        const errMsg = err.message;
+        if (!errMsg.toLowerCase().includes('no task') && !errMsg.toLowerCase().includes('no active')) {
+          setAgentError(errMsg);
+        }
+      } else {
+        setAgentError('Failed to get AI recommendation.');
+      }
     }
   }
 

@@ -449,7 +449,7 @@ class DoNextEvent(BaseModel):
 
 class DoActionEvent(BaseModel):
     """Do action event (start, complete, stuck)."""
-    user_id: str
+    user_id: Optional[str] = None  # Set by endpoint from authenticated user
     action: str  # "start", "complete", "stuck", "pause"
     task_id: Optional[str] = None
     timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())

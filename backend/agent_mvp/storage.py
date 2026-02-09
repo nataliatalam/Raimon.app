@@ -11,7 +11,7 @@ New tables to support:
 - gamification_state: User gamification data
 - agent_events: Event logging for agents
 
-All operations use get_supabase() helper.
+All operations use _get_agent_supabase() helper.
 """
 
 from typing import Dict, Any, List, Optional
@@ -145,7 +145,7 @@ def get_session_state(user_id: str) -> Optional[Dict[str, Any]]:
 def save_stuck_episode(episode: Dict[str, Any]) -> None:
     """Save stuck episode."""
     try:
-        supabase = get_supabase()
+        supabase = _get_agent_supabase()
         supabase.table("stuck_episodes").insert({
             "user_id": episode["user_id"],
             "task_id": episode["task_id"],
@@ -164,7 +164,7 @@ def save_stuck_episode(episode: Dict[str, Any]) -> None:
 def get_recent_stuck_episodes(user_id: str, hours: int = 24) -> List[Dict[str, Any]]:
     """Get recent stuck episodes."""
     try:
-        supabase = get_supabase()
+        supabase = _get_agent_supabase()
         since = datetime.utcnow() - timedelta(hours=hours)
         result = supabase.table("stuck_episodes").select("*").eq("user_id", user_id).gte("detected_at", since.isoformat()).execute()
         return result.data
@@ -179,7 +179,7 @@ def get_recent_stuck_episodes(user_id: str, hours: int = 24) -> List[Dict[str, A
 def save_time_patterns(user_id: str, patterns: Dict[str, Any]) -> None:
     """Save learned time patterns."""
     try:
-        supabase = get_supabase()
+        supabase = _get_agent_supabase()
         supabase.table("time_models").upsert({
             "user_id": user_id,
             "patterns": patterns,
@@ -195,7 +195,7 @@ def save_time_patterns(user_id: str, patterns: Dict[str, Any]) -> None:
 def get_time_patterns(user_id: str) -> Optional[Dict[str, Any]]:
     """Get learned time patterns."""
     try:
-        supabase = get_supabase()
+        supabase = _get_agent_supabase()
         result = supabase.table("time_models").select("*").eq("user_id", user_id).execute()
         if result.data:
             return result.data[0]["patterns"]
@@ -211,7 +211,7 @@ def get_time_patterns(user_id: str) -> Optional[Dict[str, Any]]:
 def save_session_insights(insights: Dict[str, Any]) -> None:
     """Save session insights."""
     try:
-        supabase = get_supabase()
+        supabase = _get_agent_supabase()
         supabase.table("insights").insert({
             "user_id": insights["user_id"],
             "date": insights["date"].isoformat(),
@@ -229,7 +229,7 @@ def save_session_insights(insights: Dict[str, Any]) -> None:
 def get_recent_insights(user_id: str, days: int = 7) -> List[Dict[str, Any]]:
     """Get recent insights."""
     try:
-        supabase = get_supabase()
+        supabase = _get_agent_supabase()
         since = datetime.utcnow() - timedelta(days=days)
         result = supabase.table("insights").select("*").eq("user_id", user_id).gte("date", since.isoformat()).execute()
         return result.data
@@ -244,7 +244,7 @@ def get_recent_insights(user_id: str, days: int = 7) -> List[Dict[str, Any]]:
 def save_gamification_state(user_id: str, state: Dict[str, Any]) -> None:
     """Save gamification state."""
     try:
-        supabase = get_supabase()
+        supabase = _get_agent_supabase()
         supabase.table("gamification_state").upsert({
             "user_id": user_id,
             "total_xp": state["total_xp"],
@@ -264,7 +264,7 @@ def save_gamification_state(user_id: str, state: Dict[str, Any]) -> None:
 def get_gamification_state(user_id: str) -> Optional[Dict[str, Any]]:
     """Get gamification state."""
     try:
-        supabase = get_supabase()
+        supabase = _get_agent_supabase()
         result = supabase.table("gamification_state").select("*").eq("user_id", user_id).execute()
         return result.data[0] if result.data else None
     except Exception as e:
@@ -278,7 +278,7 @@ def get_gamification_state(user_id: str) -> Optional[Dict[str, Any]]:
 def save_xp_ledger_entry(entry: Dict[str, Any]) -> None:
     """Save XP ledger entry."""
     try:
-        supabase = get_supabase()
+        supabase = _get_agent_supabase()
         supabase.table("xp_ledger").insert({
             "user_id": entry["user_id"],
             "action": entry["action"],
@@ -297,7 +297,7 @@ def save_xp_ledger_entry(entry: Dict[str, Any]) -> None:
 def get_xp_history(user_id: str, days: int = 30) -> List[Dict[str, Any]]:
     """Get XP transaction history."""
     try:
-        supabase = get_supabase()
+        supabase = _get_agent_supabase()
         since = datetime.utcnow() - timedelta(days=days)
         result = supabase.table("xp_ledger").select("*").eq("user_id", user_id).gte("timestamp", since.isoformat()).order("timestamp", desc=True).execute()
         return result.data
@@ -525,7 +525,7 @@ def _estimate_task_energy(task: Dict[str, Any]) -> int:
 def get_project_data(project_id: str, user_id: str) -> Optional[Dict[str, Any]]:
     """Get project data."""
     try:
-        supabase = get_supabase()
+        supabase = _get_agent_supabase()
         result = supabase.table("projects").select("*").eq("id", project_id).eq("user_id", user_id).execute()
         return result.data[0] if result.data else None
     except Exception as e:
@@ -537,7 +537,7 @@ def get_project_data(project_id: str, user_id: str) -> Optional[Dict[str, Any]]:
 def get_project_tasks(project_id: str) -> List[Dict[str, Any]]:
     """Get tasks for project."""
     try:
-        supabase = get_supabase()
+        supabase = _get_agent_supabase()
         result = supabase.table("tasks").select("*").eq("project_id", project_id).execute()
         return result.data
     except Exception as e:
@@ -549,7 +549,7 @@ def get_project_tasks(project_id: str) -> List[Dict[str, Any]]:
 def get_project_sessions(project_id: str) -> List[Dict[str, Any]]:
     """Get work sessions for project."""
     try:
-        supabase = get_supabase()
+        supabase = _get_agent_supabase()
         result = supabase.table("work_sessions").select("*").eq("project_id", project_id).execute()
         return result.data
     except Exception as e:
@@ -562,7 +562,7 @@ def get_project_checkins(project_id: str, days: int = 30) -> List[Dict[str, Any]
     """Get check-ins related to project tasks."""
     # This is a simplified implementation - in practice might need more complex logic
     try:
-        supabase = get_supabase()
+        supabase = _get_agent_supabase()
         since = datetime.utcnow() - timedelta(days=days)
         result = supabase.table("daily_check_ins").select("*").gte("created_at", since.isoformat()).execute()
         return result.data
@@ -575,7 +575,7 @@ def get_project_checkins(project_id: str, days: int = 30) -> List[Dict[str, Any]
 def get_user_profile(user_id: str) -> Optional[Dict[str, Any]]:
     """Get user profile from ai_learning_data."""
     try:
-        supabase = get_supabase()
+        supabase = _get_agent_supabase()
         result = supabase.table("ai_learning_data").select("*").eq("user_id", user_id).eq("agent_type", "user_profile").execute()
         if result.data:
             return result.data[0]["data"]
@@ -618,7 +618,7 @@ def update_session_status(task_id: str, status: str) -> None:
 def get_recent_sessions(user_id: str, hours: int = 24) -> List[Dict[str, Any]]:
     """Get recent work sessions."""
     try:
-        supabase = get_supabase()
+        supabase = _get_agent_supabase()
         since = datetime.utcnow() - timedelta(hours=hours)
         result = supabase.table("work_sessions").select("*").eq("user_id", user_id).gte("created_at", since.isoformat()).execute()
         return result.data
@@ -635,7 +635,7 @@ def get_session_patterns(user_id: str, days: int = 7) -> Dict[str, Any]:
     """
     fallback = {"recent_sessions": []}
     try:
-        supabase = get_supabase()
+        supabase = _get_agent_supabase()
         since = datetime.utcnow() - timedelta(days=days)
         result = supabase.table("work_sessions").select("*").eq("user_id", user_id).gte("created_at", since.isoformat()).execute()
         return {"recent_sessions": result.data or []}
