@@ -37,3 +37,60 @@ Stop managing your work. Start finishing it.
 ![Task](docs/task2.png)
 
 ![Task](docs/task3.png)
+
+## Run Locally
+
+### Frontend
+
+```bash
+# Install dependencies
+npm install
+
+# Set environment variables
+cp .env.example .env.local
+# Add your NEXT_PUBLIC_API_BASE_URL and Supabase keys
+
+# Run development server
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+### Backend
+
+```bash
+cd backend
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Set environment variables
+cp .env.example .env
+# Add your API keys and Supabase credentials
+
+# Run server
+uvicorn main:app --reload
+```
+
+Backend runs at [http://localhost:8000](http://localhost:8000).
+
+## Tech Stack
+
+**Frontend**
+- Next.js
+- React
+- TypeScript
+- Tailwind CSS
+- Supabase
+
+**Backend**
+- FastAPI
+- Python
+- LangGraph
+- Google Generative AI
+- Opik
+- Supabase
